@@ -191,30 +191,44 @@ func (u *VirtualKeyboardDevice) ReleaseShift() error {
 }
 
 func (u *VirtualKeyboardDevice) TypeRune(r rune) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Error in TypeRune operation: %v", r)
+		}
+	}()
 	if !unicode.In(r, unicode.PrintRanges...) {
 		err := fmt.Errorf("rune %c (%U) is not a printable character", r, r)
-		log.Error(err)
+		panic(err)
 	}
 	keyCode, isUpperCase := CodeAndCase(r)
 	if isUpperCase {
-		u.HoldShift()
-		u.KeyPressEvent(keyCode)
-		u.KeyReleaseEvent(keyCode)
-		u.ReleaseShift()
-	} else {
-		u.KeyPressEvent(keyCode)
-		u.KeyReleaseEvent(keyCode)
+		checkErr(u.HoldShift())
+	}
+	checkErr(u.KeyPressEvent(keyCode))
+	checkErr(u.KeyReleaseEvent(keyCode))
+	if isUpperCase {
+		checkErr(u.ReleaseShift())
 	}
 }
 
 func (u *VirtualKeyboardDevice) TypeSpace() {
-	u.KeyEvent(C.KEY_SPACE, 1)
-	u.KeyEvent(C.KEY_SPACE, 0)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Error in TypeSpace operation: %v", r)
+		}
+	}()
+	checkErr(u.KeyEvent(C.KEY_SPACE, 1))
+	checkErr(u.KeyEvent(C.KEY_SPACE, 0))
 }
 
 func (u *VirtualKeyboardDevice) TypeBackspace() {
-	u.KeyEvent(C.KEY_BACKSPACE, 1)
-	u.KeyEvent(C.KEY_BACKSPACE, 0)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Error in TypeBackspace operation: %v", r)
+		}
+	}()
+	checkErr(u.KeyEvent(C.KEY_BACKSPACE, 1))
+	checkErr(u.KeyEvent(C.KEY_BACKSPACE, 0))
 }
 
 func (u *VirtualKeyboardDevice) TypeString(str string) {
@@ -239,4 +253,10 @@ func (u *VirtualKeyboardDevice) TypeString(str string) {
 func (u *VirtualKeyboardDevice) Close() {
 	C.libevdev_uinput_destroy(u.uidev)
 	C.libevdev_free(u.dev)
+}
+
+func checkErr(e error) {
+	if e != nil {
+		panic(e)
+	}
 }
