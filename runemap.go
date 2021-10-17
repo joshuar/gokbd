@@ -1,5 +1,6 @@
 package gokbd
 
+// CharVariants represents the upper and lower case variants for a charactor
 type CharVariants struct {
 	lc rune
 	uc rune

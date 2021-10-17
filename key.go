@@ -5,6 +5,12 @@ package gokbd
 // #include <libevdev/libevdev-uinput.h>
 import "C"
 
+// KeyEvent represents an event received from the keyboard
+// eventRaw is the libevdev input event, see https://www.kernel.org/doc/html/v4.17/input/input.html#event-interface
+// Value is the event value, for example 1 for key press, 0 for key release
+// TypeName is the event type as a string, for example EV_KEY or EV_SYN
+// EventName is the event name as a string, for example KEY_A
+// AsRune is the key as a Go rune, for example 'a'
 type KeyEvent struct {
 	eventRaw  C.struct_input_event
 	Value     int
@@ -13,6 +19,7 @@ type KeyEvent struct {
 	AsRune    rune
 }
 
+// NewKeyEvent will create a new key event for whatever just happened on the keyboard
 func NewKeyEvent(ev C.struct_input_event) *KeyEvent {
 	return &KeyEvent{
 		eventRaw:  ev,
@@ -23,7 +30,7 @@ func NewKeyEvent(ev C.struct_input_event) *KeyEvent {
 	}
 }
 
-func (kev *KeyEvent) UpdateRune(modifiers *KeyModifiers) {
+func (kev *KeyEvent) updateRune(modifiers *KeyModifiers) {
 	switch {
 	case modifiers.CapsLock:
 	case modifiers.Shift:
@@ -31,6 +38,7 @@ func (kev *KeyEvent) UpdateRune(modifiers *KeyModifiers) {
 	}
 }
 
+// IsKeyPress will return true when the event represents a key being pressed
 func (kev *KeyEvent) IsKeyPress() bool {
 	if kev.Value == 1 && kev.TypeName == "EV_KEY" {
 		return true
@@ -38,6 +46,7 @@ func (kev *KeyEvent) IsKeyPress() bool {
 	return false
 }
 
+// IsKeyRelease will return true when the event represents a key being released
 func (kev *KeyEvent) IsKeyRelease() bool {
 	if kev.Value == 0 && kev.TypeName == "EV_KEY" {
 		return true
@@ -45,6 +54,7 @@ func (kev *KeyEvent) IsKeyRelease() bool {
 	return false
 }
 
+// IsBackspace will return true when the event represents a key involved is the backspace key
 func (kev *KeyEvent) IsBackspace() bool {
 	switch kev.EventName {
 	case "KEY_BACKSPACE":
@@ -54,6 +64,7 @@ func (kev *KeyEvent) IsBackspace() bool {
 	}
 }
 
+// IsModifier will return true when the event represents any of the "modifier" keys: Ctrl, Alt, Meta or Shift
 func (kev *KeyEvent) IsModifier() bool {
 	switch kev.EventName {
 	case "KEY_LEFTCTRL", "KEY_RIGHTCTRL", "KEY_LEFTALT", "KEY_RIGHTALT", "KEY_LEFTMETA", "KEY_RIGHTMETA", "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":

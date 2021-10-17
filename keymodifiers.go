@@ -1,5 +1,6 @@
 package gokbd
 
+// KeyModifiers represents the state of any "modifier" keys on the keyboard
 type KeyModifiers struct {
 	CapsLock bool
 	Alt      bool

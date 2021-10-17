@@ -21,18 +21,20 @@ import (
 
 const devicePath = "/dev/input"
 
+// KeyboardDevice represents a physical keyboard, it contains the dev struct, file descriptor and state of any "modifier" keys
 type KeyboardDevice struct {
 	dev       *C.struct_libevdev
 	fd        *os.File
 	modifiers *KeyModifiers
 }
 
+// Close will gracefully handle closing a keyboard device, freeing memory and file descriptors
 func (k *KeyboardDevice) Close() {
 	C.libevdev_free(k.dev)
 	k.fd.Close()
 }
 
-func (k *KeyboardDevice) IsKeyboard() bool {
+func (k *KeyboardDevice) isKeyboard() bool {
 	if C.libevdev_has_event_code(k.dev, C.EV_KEY, C.KEY_CAPSLOCK) == 1 {
 		return true
 	} else {
@@ -40,6 +42,7 @@ func (k *KeyboardDevice) IsKeyboard() bool {
 	}
 }
 
+// OpenKeyboardDevice will open a specific keyboard device (from the device path passed as a string)
 func OpenKeyboardDevice(devPath string) *KeyboardDevice {
 	dev := C.libevdev_new()
 	fd, err := os.Open(devPath)
@@ -58,6 +61,7 @@ func OpenKeyboardDevice(devPath string) *KeyboardDevice {
 	}
 }
 
+// OpenKeyboardDevices will open all currently connected keyboards
 func OpenKeyboardDevices() []*KeyboardDevice {
 	var kbds []*KeyboardDevice
 	fileRegexp, _ := regexp.Compile(`event\d+$`)
@@ -69,7 +73,7 @@ func OpenKeyboardDevices() []*KeyboardDevice {
 		if !d.IsDir() {
 			if fileRegexp.MatchString(path) {
 				kbd := OpenKeyboardDevice(path)
-				if kbd.IsKeyboard() {
+				if kbd.isKeyboard() {
 					kbds = append(kbds, kbd)
 				} else {
 					kbd.Close()
@@ -84,6 +88,7 @@ func OpenKeyboardDevices() []*KeyboardDevice {
 	return kbds
 }
 
+// SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  It needs a channel passed in for KeyEvents which is up to the caller to create
 func SnoopAllKeyboards(keys chan KeyEvent) error {
 	kbds := OpenKeyboardDevices()
 	if len(kbds) == 0 {
@@ -111,7 +116,7 @@ func SnoopAllKeyboards(keys chan KeyEvent) error {
 						kbd.modifiers.ToggleMeta()
 					}
 				}
-				e.UpdateRune(kbd.modifiers)
+				e.updateRune(kbd.modifiers)
 				keys <- *e
 			}
 		}(kbd)
@@ -119,11 +124,13 @@ func SnoopAllKeyboards(keys chan KeyEvent) error {
 	return nil
 }
 
+// VirtualKeyboardDevice represents a "virtual" (uinput) keyboard device
 type VirtualKeyboardDevice struct {
 	uidev *C.struct_libevdev_uinput
 	dev   *C.struct_libevdev
 }
 
+// NewVirtualKeyboard will create a new virtual keyboard device (with the name passed in)
 func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 	var uidev *C.struct_libevdev_uinput
 
@@ -156,6 +163,7 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 	}
 }
 
+// SyncEvent sends the EVSYN event to a virtual keyboard, required between other events
 func (u *VirtualKeyboardDevice) SyncEvent() error {
 	rv := C.libevdev_uinput_write_event(u.uidev, C.EV_SYN, C.SYN_REPORT, 0)
 	if rv < 0 {
@@ -164,6 +172,7 @@ func (u *VirtualKeyboardDevice) SyncEvent() error {
 	return nil
 }
 
+// KeyEvent sends a specific keycode and value to the virtual keyboard
 func (u *VirtualKeyboardDevice) KeyEvent(keyCode int, value int) error {
 	rv := C.libevdev_uinput_write_event(u.uidev, C.EV_KEY, C.uint(keyCode), C.int(value))
 	if rv < 0 {
@@ -174,22 +183,27 @@ func (u *VirtualKeyboardDevice) KeyEvent(keyCode int, value int) error {
 	return u.SyncEvent()
 }
 
+// KeyPressEvent sends a specified key "press" to the virtual keyboard
 func (u *VirtualKeyboardDevice) KeyPressEvent(keyCode int) error {
 	return u.KeyEvent(keyCode, 1)
 }
 
+// KeyReleaseEvent sends a specified key "release" to the virtual keyboard
 func (u *VirtualKeyboardDevice) KeyReleaseEvent(keyCode int) error {
 	return u.KeyEvent(keyCode, 0)
 }
 
+// HoldShift sends the equivalent of holding down the shift key to the virtual keyboard
 func (u *VirtualKeyboardDevice) HoldShift() error {
 	return u.KeyEvent(C.KEY_LEFTSHIFT, 1)
 }
 
+// ReleaseShift sends the equivalent of releasing the shift key to the virtual keyboard
 func (u *VirtualKeyboardDevice) ReleaseShift() error {
 	return u.KeyEvent(C.KEY_LEFTSHIFT, 0)
 }
 
+// TypeRune is a high level way to "type" a specific Go rune on the keyboard
 func (u *VirtualKeyboardDevice) TypeRune(r rune) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -211,6 +225,7 @@ func (u *VirtualKeyboardDevice) TypeRune(r rune) {
 	}
 }
 
+// TypeSpace is a high level way to "type" a space character (effectively, press/release the spacebar)
 func (u *VirtualKeyboardDevice) TypeSpace() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -221,6 +236,7 @@ func (u *VirtualKeyboardDevice) TypeSpace() {
 	checkErr(u.KeyEvent(C.KEY_SPACE, 0))
 }
 
+// TypeBackspace allows you to "type" a backspace key and remove a single character
 func (u *VirtualKeyboardDevice) TypeBackspace() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -231,6 +247,7 @@ func (u *VirtualKeyboardDevice) TypeBackspace() {
 	checkErr(u.KeyEvent(C.KEY_BACKSPACE, 0))
 }
 
+// TypeString is a high level function that makes it easy to "type" out a string to the virtual keyboard
 func (u *VirtualKeyboardDevice) TypeString(str string) {
 	s := strings.NewReader(str)
 	for {
@@ -250,6 +267,7 @@ func (u *VirtualKeyboardDevice) TypeString(str string) {
 	}
 }
 
+// Close will gracefully remove a virtual keyboard, freeing memory and file descriptors
 func (u *VirtualKeyboardDevice) Close() {
 	C.libevdev_uinput_destroy(u.uidev)
 	C.libevdev_free(u.dev)
