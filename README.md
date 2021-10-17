@@ -5,7 +5,7 @@
 
 ## About
 
-This is a very simple library using libevdev to talk to a keyboard on Linux. It
+This is an elementary library using libevdev to talk to a keyboard on Linux. It
 allows snooping the keys pressed as well as typing out keys.
 
 ## Usage
