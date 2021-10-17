@@ -7,7 +7,7 @@ import (
 
 func main() {
 	log.SetLevel(log.DebugLevel)
-	vDev := gokbd.NewVirtualKeyboard()
+	vDev := gokbd.NewVirtualKeyboard("gokbd test")
 	vDev.TypeRune('H')
 	vDev.TypeRune('e')
 	vDev.TypeRune('l')

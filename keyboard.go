@@ -124,11 +124,11 @@ type VirtualKeyboardDevice struct {
 	dev   *C.struct_libevdev
 }
 
-func NewVirtualKeyboard() *VirtualKeyboardDevice {
+func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 	var uidev *C.struct_libevdev_uinput
 
 	dev := C.libevdev_new()
-	C.libevdev_set_name(dev, C.CString("virtual keyboard"))
+	C.libevdev_set_name(dev, C.CString(name))
 	// expose the relevant event types
 	C.libevdev_enable_event_type(dev, C.EV_REL)
 	C.libevdev_enable_event_type(dev, C.EV_KEY)

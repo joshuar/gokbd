@@ -30,3 +30,35 @@ func (kev *KeyEvent) UpdateRune(modifiers *KeyModifiers) {
 		kev.AsRune = runeMap[int(kev.eventRaw.code)].uc
 	}
 }
+
+func (kev *KeyEvent) IsKeyPress() bool {
+	if kev.Value == 1 && kev.TypeName == "EV_KEY" {
+		return true
+	}
+	return false
+}
+
+func (kev *KeyEvent) IsKeyRelease() bool {
+	if kev.Value == 0 && kev.TypeName == "EV_KEY" {
+		return true
+	}
+	return false
+}
+
+func (kev *KeyEvent) IsBackspace() bool {
+	switch kev.EventName {
+	case "KEY_BACKSPACE":
+		return true
+	default:
+		return false
+	}
+}
+
+func (kev *KeyEvent) IsModifier() bool {
+	switch kev.EventName {
+	case "KEY_LEFTCTRL", "KEY_RIGHTCTRL", "KEY_LEFTALT", "KEY_RIGHTALT", "KEY_LEFTMETA", "KEY_RIGHTMETA", "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
+		return true
+	default:
+		return false
+	}
+}
