@@ -61,10 +61,12 @@ func OpenKeyboardDevice(devPath string) *KeyboardDevice {
 	}
 }
 
-// OpenKeyboardDevices will open all currently connected keyboards
-func OpenKeyboardDevices() []*KeyboardDevice {
-	var kbds []*KeyboardDevice
+// OpenKeyboardDevices will open all currently connected keyboards passing them out through a channel for further processing
+func OpenKeyboardDevices() <-chan *KeyboardDevice {
+	kbdChan := make(chan *KeyboardDevice)
+	var kbdPaths []string
 	fileRegexp, _ := regexp.Compile(`event\d+$`)
+	log.Debug("Looking for keyboards...")
 	err := filepath.WalkDir(devicePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			log.Errorf("could not read %q: %v\n", path, err)
@@ -74,7 +76,8 @@ func OpenKeyboardDevices() []*KeyboardDevice {
 			if fileRegexp.MatchString(path) {
 				kbd := OpenKeyboardDevice(path)
 				if kbd.isKeyboard() {
-					kbds = append(kbds, kbd)
+					log.Debugf("Found keyboard at %s", path)
+					kbdPaths = append(kbdPaths, path)
 				} else {
 					kbd.Close()
 				}
@@ -85,17 +88,21 @@ func OpenKeyboardDevices() []*KeyboardDevice {
 	if err != nil {
 		log.Errorf("Couldn't traverse device path: %s, %v", devicePath, err)
 	}
-	return kbds
+	log.Debug("Keyboard search finished.")
+	go func() {
+		for _, k := range kbdPaths {
+			kbdChan <- OpenKeyboardDevice(k)
+		}
+		close(kbdChan)
+	}()
+	return kbdChan
 }
 
-// SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  It needs a channel passed in for KeyEvents which is up to the caller to create
-func SnoopAllKeyboards(keys chan KeyEvent) error {
-	kbds := OpenKeyboardDevices()
-	if len(kbds) == 0 {
-		return errors.New("no keyboards found to snoop")
-	}
+// SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  Keyboards are passed in through a channel, see OpenKeyboardDevices for an example of opening all connected keyboards
+func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
-	for _, kbd := range kbds {
+	keys := make(chan KeyEvent)
+	for kbd := range kbds {
 		log.Debugf("Tracking keys on device %s", kbd.fd.Name())
 		go func(kbd *KeyboardDevice) {
 			for {
@@ -121,7 +128,7 @@ func SnoopAllKeyboards(keys chan KeyEvent) error {
 			}
 		}(kbd)
 	}
-	return nil
+	return keys
 }
 
 // VirtualKeyboardDevice represents a "virtual" (uinput) keyboard device
