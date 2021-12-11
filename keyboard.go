@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -74,13 +75,7 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 		}
 		if !d.IsDir() {
 			if fileRegexp.MatchString(path) {
-				kbd := OpenKeyboardDevice(path)
-				if kbd.isKeyboard() {
-					log.Debugf("Found keyboard at %s", path)
-					kbdPaths = append(kbdPaths, path)
-				} else {
-					kbd.Close()
-				}
+				kbdPaths = append(kbdPaths, path)
 			}
 		}
 		return nil
@@ -90,8 +85,14 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 	}
 	log.Debug("Keyboard search finished.")
 	go func() {
-		for _, k := range kbdPaths {
-			kbdChan <- OpenKeyboardDevice(k)
+		for _, kbdPath := range kbdPaths {
+			kbd := OpenKeyboardDevice(kbdPath)
+			if kbd.isKeyboard() {
+				log.Debugf("Opening keyboard device %s", kbdPath)
+				kbdChan <- kbd
+			} else {
+				kbd.Close()
+			}
 		}
 		close(kbdChan)
 	}()
@@ -102,32 +103,40 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
 	keys := make(chan KeyEvent)
+	var wg sync.WaitGroup
+	kbdSnoop := func(kbd *KeyboardDevice) {
+		defer wg.Done()
+		for {
+			var ev C.struct_input_event
+			C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
+			e := NewKeyEvent(ev)
+			if e.Value != 2 {
+				switch e.EventName {
+				case "KEY_CAPSLOCK":
+					kbd.modifiers.ToggleCapsLock()
+				case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
+					kbd.modifiers.ToggleShift()
+				case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
+					kbd.modifiers.ToggleCtrl()
+				case "KEY_LEFTALT", "KEY_RIGHTALT":
+					kbd.modifiers.ToggleAlt()
+				case "KEY_LEFTMETA", "KEY_RIGHTMETA":
+					kbd.modifiers.ToggleMeta()
+				}
+			}
+			e.updateRune(kbd.modifiers)
+			keys <- *e
+		}
+	}
 	for kbd := range kbds {
 		log.Debugf("Tracking keys on device %s", kbd.fd.Name())
-		go func(kbd *KeyboardDevice) {
-			for {
-				var ev C.struct_input_event
-				C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
-				e := NewKeyEvent(ev)
-				if e.Value != 2 {
-					switch e.EventName {
-					case "KEY_CAPSLOCK":
-						kbd.modifiers.ToggleCapsLock()
-					case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
-						kbd.modifiers.ToggleShift()
-					case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
-						kbd.modifiers.ToggleCtrl()
-					case "KEY_LEFTALT", "KEY_RIGHTALT":
-						kbd.modifiers.ToggleAlt()
-					case "KEY_LEFTMETA", "KEY_RIGHTMETA":
-						kbd.modifiers.ToggleMeta()
-					}
-				}
-				e.updateRune(kbd.modifiers)
-				keys <- *e
-			}
-		}(kbd)
+		wg.Add(1)
+		go kbdSnoop(kbd)
 	}
+	go func() {
+		defer close(keys)
+		wg.Wait()
+	}()
 	return keys
 }
 
