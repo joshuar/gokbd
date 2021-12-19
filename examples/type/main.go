@@ -21,5 +21,6 @@ func main() {
 		vDev.TypeBackspace()
 	}
 	vDev.TypeString("ake")
+
 	vDev.Close()
 }

@@ -5,7 +5,6 @@ package gokbd
 // #include <libevdev/libevdev-uinput.h>
 import "C"
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -179,88 +178,109 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 	}
 }
 
-// SyncEvent sends the EVSYN event to a virtual keyboard, required between other events
-func (u *VirtualKeyboardDevice) SyncEvent() error {
-	rv := C.libevdev_uinput_write_event(u.uidev, C.EV_SYN, C.SYN_REPORT, 0)
-	if rv < 0 {
-		return errors.New("failed to issue EV_SYN SYN_REPORT")
+type key struct {
+	keyType, keyCode, value int
+}
+
+func keyPress(c int) *key {
+	return &key{
+		keyType: C.EV_KEY,
+		keyCode: c,
+		value:   1,
 	}
-	return nil
 }
 
-// KeyEvent sends a specific keycode and value to the virtual keyboard
-func (u *VirtualKeyboardDevice) KeyEvent(keyCode int, value int) error {
-	rv := C.libevdev_uinput_write_event(u.uidev, C.EV_KEY, C.uint(keyCode), C.int(value))
-	if rv < 0 {
-		name := C.libevdev_event_value_get_name(C.EV_KEY, C.uint(keyCode), 0)
-		err := fmt.Errorf("failed to issue key press event (EV_KEY, 0) for %s", C.GoString(name))
-		return err
+func keyRelease(c int) *key {
+	return &key{
+		keyType: C.EV_KEY,
+		keyCode: c,
+		value:   0,
 	}
-	return u.SyncEvent()
 }
 
-// KeyPressEvent sends a specified key "press" to the virtual keyboard
-func (u *VirtualKeyboardDevice) KeyPressEvent(keyCode int) error {
-	return u.KeyEvent(keyCode, 1)
+func keySync() *key {
+	return &key{
+		keyType: C.EV_SYN,
+		keyCode: C.SYN_REPORT,
+		value:   0,
+	}
 }
 
-// KeyReleaseEvent sends a specified key "release" to the virtual keyboard
-func (u *VirtualKeyboardDevice) KeyReleaseEvent(keyCode int) error {
-	return u.KeyEvent(keyCode, 0)
-}
-
-// HoldShift sends the equivalent of holding down the shift key to the virtual keyboard
-func (u *VirtualKeyboardDevice) HoldShift() error {
-	return u.KeyEvent(C.KEY_LEFTSHIFT, 1)
-}
-
-// ReleaseShift sends the equivalent of releasing the shift key to the virtual keyboard
-func (u *VirtualKeyboardDevice) ReleaseShift() error {
-	return u.KeyEvent(C.KEY_LEFTSHIFT, 0)
-}
-
-// TypeRune is a high level way to "type" a specific Go rune on the keyboard
-func (u *VirtualKeyboardDevice) TypeRune(r rune) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("Error in TypeRune operation: %v", r)
+func keySequence(keys ...*key) <-chan *key {
+	out := make(chan *key)
+	go func() {
+		for _, n := range keys {
+			out <- n
 		}
+		close(out)
 	}()
+	return out
+}
+
+func (u *VirtualKeyboardDevice) TypeKey(c int, holdShift bool) {
+	done := make(chan struct{})
+	defer close(done)
+	if holdShift {
+		errc := u.sendKeys(done, keySequence(keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT)))
+		if err := <-errc; err != nil {
+			log.Errorf("Got error: %v", err)
+		}
+	} else {
+		errc := u.sendKeys(done, keySequence(keyPress(c), keySync(), keyRelease(c), keySync()))
+		if err := <-errc; err != nil {
+			log.Errorf("Got error: %v", err)
+		}
+	}
+}
+
+func (u *VirtualKeyboardDevice) TypeRune(r rune) {
 	if !unicode.In(r, unicode.PrintRanges...) {
-		err := fmt.Errorf("rune %c (%U) is not a printable character", r, r)
-		panic(err)
+		log.Error(fmt.Errorf("rune %c (%U) is not a printable character", r, r))
 	}
 	keyCode, isUpperCase := CodeAndCase(r)
-	if isUpperCase {
-		checkErr(u.HoldShift())
+	u.TypeKey(keyCode, isUpperCase)
+}
+
+func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key) <-chan error {
+	var wg sync.WaitGroup
+	out := make(chan error)
+	output := func(in <-chan *key) {
+		for k := range in {
+			select {
+			case <-done:
+				return
+			default:
+				rv := C.libevdev_uinput_write_event(u.uidev, C.uint(k.keyType), C.uint(k.keyCode), C.int(k.value))
+				if rv < 0 {
+					out <- fmt.Errorf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
+				}
+			}
+		}
+		wg.Done()
 	}
-	checkErr(u.KeyPressEvent(keyCode))
-	checkErr(u.KeyReleaseEvent(keyCode))
-	if isUpperCase {
-		checkErr(u.ReleaseShift())
+
+	wg.Add(len(ev))
+	for _, c := range ev {
+		go output(c)
 	}
+
+	// Start a goroutine to close out once all the output goroutines are
+	// done.  This must start after the wg.Add call.
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
 }
 
 // TypeSpace is a high level way to "type" a space character (effectively, press/release the spacebar)
 func (u *VirtualKeyboardDevice) TypeSpace() {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("Error in TypeSpace operation: %v", r)
-		}
-	}()
-	checkErr(u.KeyEvent(C.KEY_SPACE, 1))
-	checkErr(u.KeyEvent(C.KEY_SPACE, 0))
+	u.TypeKey(C.KEY_SPACE, false)
 }
 
 // TypeBackspace allows you to "type" a backspace key and remove a single character
 func (u *VirtualKeyboardDevice) TypeBackspace() {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("Error in TypeBackspace operation: %v", r)
-		}
-	}()
-	checkErr(u.KeyEvent(C.KEY_BACKSPACE, 1))
-	checkErr(u.KeyEvent(C.KEY_BACKSPACE, 0))
+	u.TypeKey(C.KEY_BACKSPACE, false)
 }
 
 // TypeString is a high level function that makes it easy to "type" out a string to the virtual keyboard
