@@ -38,7 +38,10 @@ func TestKeyboardDevice_Close(t *testing.T) {
 	}
 }
 
-func TestKeyboardDevice_isKeyboard(t *testing.T) {
+func testKeyboardDevice_isKeyboard(t *testing.T) {
+	virtualKbd := NewVirtualKeyboard("gokbdtest")
+	kbds := OpenKeyboardDevices()
+	realKbd := <-kbds
 	type fields struct {
 		dev       *C.struct_libevdev
 		fd        *os.File
@@ -49,7 +52,20 @@ func TestKeyboardDevice_isKeyboard(t *testing.T) {
 		fields fields
 		want   bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "is a keyboard",
+			fields: fields{
+				dev: realKbd.dev,
+			},
+			want: true,
+		},
+		{
+			name: "not a keyboard",
+			fields: fields{
+				dev: virtualKbd.dev,
+			},
+			want: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -66,7 +82,7 @@ func TestKeyboardDevice_isKeyboard(t *testing.T) {
 }
 
 func testOpenKeyboardDevice(t *testing.T) {
-	kbds := findAllKeyboards()
+	kbds := findAllInputDevices()
 	type args struct {
 		devPath string
 	}
@@ -290,32 +306,6 @@ func TestVirtualKeyboardDevice_TypeRune(t *testing.T) {
 				dev:   tt.fields.dev,
 			}
 			u.TypeRune(tt.args.r)
-		})
-	}
-}
-
-func TestVirtualKeyboardDevice_sendKeys2(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
-	type args struct {
-		keys []*key
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
-			}
-			u.sendKeys2(tt.args.keys...)
 		})
 	}
 }
