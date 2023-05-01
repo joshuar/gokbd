@@ -188,7 +188,7 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 	log.Debug().Caller().
 		Msgf("Virtual keyboard created at %s.",
 			C.GoString(C.libevdev_uinput_get_devnode(uidev)))
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Millisecond * 500)
 	kbd := &VirtualKeyboardDevice{
 		uidev: uidev,
 		dev:   dev,
@@ -205,7 +205,7 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 					fmt.Printf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
 				}
 			}
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Microsecond)
 			kbd.wg.Done()
 		}
 	}()
