@@ -279,7 +279,7 @@ func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key
 				if rv < 0 {
 					out <- fmt.Errorf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
 				}
-				time.Sleep(time.Millisecond)
+				time.Sleep(time.Microsecond)
 			}
 		}
 		wg.Done()
