@@ -1,0 +1,17 @@
+before:
+  hooks:
+    - go mod tidy
+
+changelog:
+  use: github-native
+  sort: asc
+  abbrev: 0
+  filters:
+    exclude:
+      - '^docs:'
+      - typo
+
+builds:
+- skip: true
+
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json

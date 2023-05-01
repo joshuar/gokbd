@@ -6,5 +6,8 @@
         "markdown",
         "latex",
         "plaintext"
-    ]
+    ],
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": "file:///home/joshua/git/gokbd/.github/workflows/goreleaser.yml"
+    }
 }
