@@ -22,13 +22,13 @@ func main() {
 	keys := gokbd.SnoopAllKeyboards(gokbd.OpenKeyboardDevices())
 	for k := range keys {
 		if k.Value == 1 && k.TypeName == "EV_KEY" {
-			log.Debug().Msgf("Key pressed: %s %s %d %c\n", k.TypeName, k.EventName, k.Value, k.AsRune)
+			log.Debug().Msgf("Key pressed: %s %s %d %c", k.TypeName, k.EventName, k.Value, k.AsRune)
 		}
 		if k.Value == 0 && k.TypeName == "EV_KEY" {
-			log.Debug().Msgf("Key released: %s %s %d\n", k.TypeName, k.EventName, k.Value)
+			log.Debug().Msgf("Key released: %s %s %d", k.TypeName, k.EventName, k.Value)
 		}
 		if k.Value == 2 && k.TypeName == "EV_KEY" {
-			log.Debug().Msgf("Key held: %s %s %d %c\n", k.TypeName, k.EventName, k.Value, k.AsRune)
+			log.Debug().Msgf("Key held: %s %s %d %c", k.TypeName, k.EventName, k.Value, k.AsRune)
 		}
 	}
 }
