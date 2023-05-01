@@ -70,7 +70,7 @@ func OpenKeyboardDevice(devPath string) (*KeyboardDevice, error) {
 func OpenKeyboardDevices() <-chan *KeyboardDevice {
 	kbdChan := make(chan *KeyboardDevice)
 	go func() {
-		for _, kbdPath := range findAllKeyboards() {
+		for _, kbdPath := range findAllInputDevices() {
 			kbd, err := OpenKeyboardDevice(kbdPath)
 			if err != nil {
 				log.Error().Err(err).
@@ -89,8 +89,8 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 	return kbdChan
 }
 
-func findAllKeyboards() []string {
-	var kbdPaths []string
+func findAllInputDevices() []string {
+	var paths []string
 	fileRegexp, _ := regexp.Compile(`event\d+$`)
 	log.Debug().Caller().
 		Msg("Looking for keyboards...")
@@ -102,7 +102,7 @@ func findAllKeyboards() []string {
 		}
 		if !d.IsDir() {
 			if fileRegexp.MatchString(path) {
-				kbdPaths = append(kbdPaths, path)
+				paths = append(paths, path)
 			}
 		}
 		return nil
@@ -113,7 +113,7 @@ func findAllKeyboards() []string {
 	}
 	log.Debug().Caller().
 		Msg("Keyboard search finished.")
-	return kbdPaths
+	return paths
 }
 
 // SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  Keyboards are passed in through a channel, see OpenKeyboardDevices for an example of opening all connected keyboards
