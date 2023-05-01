@@ -266,15 +266,6 @@ func (u *VirtualKeyboardDevice) TypeRune(r rune) {
 	u.TypeKey(keyCode, isUpperCase)
 }
 
-func (u *VirtualKeyboardDevice) sendKeys2(keys ...*key) {
-	for _, k := range keys {
-		rv := C.libevdev_uinput_write_event(u.uidev, C.uint(k.keyType), C.uint(k.keyCode), C.int(k.value))
-		if rv < 0 {
-			fmt.Printf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
-		}
-	}
-}
-
 func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key) <-chan error {
 	var wg sync.WaitGroup
 	out := make(chan error)
