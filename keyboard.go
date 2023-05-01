@@ -155,8 +155,6 @@ func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 type VirtualKeyboardDevice struct {
 	uidev *C.struct_libevdev_uinput
 	dev   *C.struct_libevdev
-	keys  chan *key
-	wg    *sync.WaitGroup
 }
 
 // NewVirtualKeyboard will create a new virtual keyboard device (with the name passed in)
@@ -189,27 +187,10 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 		Msgf("Virtual keyboard created at %s.",
 			C.GoString(C.libevdev_uinput_get_devnode(uidev)))
 	time.Sleep(time.Millisecond * 500)
-	kbd := &VirtualKeyboardDevice{
+	return &VirtualKeyboardDevice{
 		uidev: uidev,
 		dev:   dev,
-		keys:  make(chan *key),
-		wg:    &sync.WaitGroup{},
 	}
-	go func() {
-		for {
-			select {
-			case k := <-kbd.keys:
-				kbd.wg.Add(1)
-				rv := C.libevdev_uinput_write_event(kbd.uidev, C.uint(k.keyType), C.uint(k.keyCode), C.int(k.value))
-				if rv != 0 {
-					fmt.Printf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
-				}
-			}
-			time.Sleep(time.Microsecond)
-			kbd.wg.Done()
-		}
-	}()
-	return kbd
 }
 
 type key struct {
@@ -260,17 +241,7 @@ func (u *VirtualKeyboardDevice) TypeKey(c int, holdShift bool) {
 			log.Error().Caller().Err(err).
 				Msg("Got error.")
 		}
-		// keySeq := []*key{keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT)}
-		// for _, k := range keySeq {
-		// 	u.keys <- k
-		// }
-		// u.sendKeys2(keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT))
 	} else {
-		// keySeq := []*key{keyPress(c), keySync(), keyRelease(c), keySync()}
-		// for _, k := range keySeq {
-		// 	u.keys <- k
-		// }
-		// u.sendKeys2(keyPress(c), keySync(), keyRelease(c), keySync())
 		errc := u.sendKeys(done, keySequence(keyPress(c), keySync(), keyRelease(c), keySync()))
 		if err := <-errc; err != nil {
 			log.Error().Caller().Err(err).
@@ -365,7 +336,6 @@ func (u *VirtualKeyboardDevice) TypeString(str string) {
 func (u *VirtualKeyboardDevice) Close() {
 	log.Debug().Caller().
 		Msg("Closing virtual keyboard device.")
-	u.wg.Wait()
 	C.libevdev_uinput_destroy(u.uidev)
 	C.libevdev_free(u.dev)
 }
