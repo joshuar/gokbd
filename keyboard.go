@@ -1,5 +1,5 @@
 // Copyright (c) 2023 Joshua Rich <joshua.rich@gmail.com>
-// 
+//
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
@@ -368,10 +368,4 @@ func (u *VirtualKeyboardDevice) Close() {
 	u.wg.Wait()
 	C.libevdev_uinput_destroy(u.uidev)
 	C.libevdev_free(u.dev)
-}
-
-func checkErr(e error) {
-	if e != nil {
-		panic(e)
-	}
 }
