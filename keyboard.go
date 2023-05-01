@@ -10,6 +10,7 @@ package gokbd
 // #include <libevdev/libevdev-uinput.h>
 import "C"
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -48,28 +49,47 @@ func (k *KeyboardDevice) isKeyboard() bool {
 }
 
 // OpenKeyboardDevice will open a specific keyboard device (from the device path passed as a string)
-func OpenKeyboardDevice(devPath string) *KeyboardDevice {
+func OpenKeyboardDevice(devPath string) (*KeyboardDevice, error) {
 	dev := C.libevdev_new()
 	fd, err := os.Open(devPath)
 	if err != nil {
-		log.Panic().Caller().Err(err).
-			Msg("Failed to open device.")
+		return nil, err
 	}
 	c_err := C.libevdev_set_fd(dev, C.int(fd.Fd()))
 	if c_err > 0 {
-		log.Panic().Caller().Err(err).
-			Msg("Failed to init libevdev.")
+		return nil, errors.New("failed to init libevdev")
 	}
 	return &KeyboardDevice{
 		dev:       dev,
 		fd:        fd,
 		modifiers: NewKeyModifers(),
-	}
+	}, nil
 }
 
 // OpenKeyboardDevices will open all currently connected keyboards passing them out through a channel for further processing
 func OpenKeyboardDevices() <-chan *KeyboardDevice {
 	kbdChan := make(chan *KeyboardDevice)
+	go func() {
+		for _, kbdPath := range findAllKeyboards() {
+			kbd, err := OpenKeyboardDevice(kbdPath)
+			if err != nil {
+				log.Error().Err(err).
+					Msgf("Unable to open device %s.", kbdPath)
+			}
+			if kbd.isKeyboard() {
+				log.Debug().Caller().
+					Msgf("Opening keyboard device %s.", kbdPath)
+				kbdChan <- kbd
+			} else {
+				kbd.Close()
+			}
+		}
+		close(kbdChan)
+	}()
+	return kbdChan
+}
+
+func findAllKeyboards() []string {
 	var kbdPaths []string
 	fileRegexp, _ := regexp.Compile(`event\d+$`)
 	log.Debug().Caller().
@@ -93,20 +113,7 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 	}
 	log.Debug().Caller().
 		Msg("Keyboard search finished.")
-	go func() {
-		for _, kbdPath := range kbdPaths {
-			kbd := OpenKeyboardDevice(kbdPath)
-			if kbd.isKeyboard() {
-				log.Debug().Caller().
-					Msgf("Opening keyboard device %s.", kbdPath)
-				kbdChan <- kbd
-			} else {
-				kbd.Close()
-			}
-		}
-		close(kbdChan)
-	}()
-	return kbdChan
+	return kbdPaths
 }
 
 // SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  Keyboards are passed in through a channel, see OpenKeyboardDevices for an example of opening all connected keyboards
