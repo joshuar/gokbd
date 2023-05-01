@@ -1,3 +1,8 @@
+// Copyright (c) 2023 Joshua Rich <joshua.rich@gmail.com>
+// 
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package gokbd
 
 // #cgo pkg-config: libevdev
@@ -16,7 +21,7 @@ import (
 	"time"
 	"unicode"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
 const devicePath = "/dev/input"
@@ -47,12 +52,13 @@ func OpenKeyboardDevice(devPath string) *KeyboardDevice {
 	dev := C.libevdev_new()
 	fd, err := os.Open(devPath)
 	if err != nil {
-		log.Fatalf("Failed to open device: %v", err)
+		log.Panic().Caller().Err(err).
+			Msg("Failed to open device.")
 	}
 	c_err := C.libevdev_set_fd(dev, C.int(fd.Fd()))
 	if c_err > 0 {
-		log.Fatalf("Failed to init libevdev: %v", err)
-		os.Exit(1)
+		log.Panic().Caller().Err(err).
+			Msg("Failed to init libevdev.")
 	}
 	return &KeyboardDevice{
 		dev:       dev,
@@ -66,10 +72,12 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 	kbdChan := make(chan *KeyboardDevice)
 	var kbdPaths []string
 	fileRegexp, _ := regexp.Compile(`event\d+$`)
-	log.Debug("Looking for keyboards...")
+	log.Debug().Caller().
+		Msg("Looking for keyboards...")
 	err := filepath.WalkDir(devicePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			log.Errorf("could not read %q: %v\n", path, err)
+			log.Error().Caller().Err(err).
+				Msgf("could not read %q.", path)
 			return err
 		}
 		if !d.IsDir() {
@@ -80,14 +88,17 @@ func OpenKeyboardDevices() <-chan *KeyboardDevice {
 		return nil
 	})
 	if err != nil {
-		log.Errorf("Couldn't traverse device path: %s, %v", devicePath, err)
+		log.Error().Caller().Err(err).
+			Msgf("Couldn't traverse device path: %s.", devicePath)
 	}
-	log.Debug("Keyboard search finished.")
+	log.Debug().Caller().
+		Msg("Keyboard search finished.")
 	go func() {
 		for _, kbdPath := range kbdPaths {
 			kbd := OpenKeyboardDevice(kbdPath)
 			if kbd.isKeyboard() {
-				log.Debugf("Opening keyboard device %s", kbdPath)
+				log.Debug().Caller().
+					Msgf("Opening keyboard device %s.", kbdPath)
 				kbdChan <- kbd
 			} else {
 				kbd.Close()
@@ -128,7 +139,8 @@ func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 		}
 	}
 	for kbd := range kbds {
-		log.Debugf("Tracking keys on device %s", kbd.fd.Name())
+		log.Debug().Caller().
+			Msgf("Tracking keys on device %s.", kbd.fd.Name())
 		wg.Add(1)
 		go kbdSnoop(kbd)
 	}
@@ -143,6 +155,8 @@ func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 type VirtualKeyboardDevice struct {
 	uidev *C.struct_libevdev_uinput
 	dev   *C.struct_libevdev
+	keys  chan *key
+	wg    *sync.WaitGroup
 }
 
 // NewVirtualKeyboard will create a new virtual keyboard device (with the name passed in)
@@ -167,15 +181,35 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 
 	rv := C.libevdev_uinput_create_from_device(dev, C.LIBEVDEV_UINPUT_OPEN_MANAGED, &uidev)
 	if rv > 0 {
-		log.Errorf("Failed to create new uinput device: %v", rv)
+		log.Error().Caller().
+			Msgf("Failed to create new uinput device: %v.", rv)
 		return nil
 	}
-	log.Debugf("Virtual keyboard created at %s", C.GoString(C.libevdev_uinput_get_devnode(uidev)))
+	log.Debug().Caller().
+		Msgf("Virtual keyboard created at %s.",
+			C.GoString(C.libevdev_uinput_get_devnode(uidev)))
 	time.Sleep(1 * time.Second)
-	return &VirtualKeyboardDevice{
+	kbd := &VirtualKeyboardDevice{
 		uidev: uidev,
 		dev:   dev,
+		keys:  make(chan *key),
+		wg:    &sync.WaitGroup{},
 	}
+	go func() {
+		for {
+			select {
+			case k := <-kbd.keys:
+				kbd.wg.Add(1)
+				rv := C.libevdev_uinput_write_event(kbd.uidev, C.uint(k.keyType), C.uint(k.keyCode), C.int(k.value))
+				if rv != 0 {
+					fmt.Printf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
+				}
+			}
+			time.Sleep(time.Millisecond)
+			kbd.wg.Done()
+		}
+	}()
+	return kbd
 }
 
 type key struct {
@@ -223,22 +257,44 @@ func (u *VirtualKeyboardDevice) TypeKey(c int, holdShift bool) {
 	if holdShift {
 		errc := u.sendKeys(done, keySequence(keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT)))
 		if err := <-errc; err != nil {
-			log.Errorf("Got error: %v", err)
+			log.Error().Caller().Err(err).
+				Msg("Got error.")
 		}
+		// keySeq := []*key{keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT)}
+		// for _, k := range keySeq {
+		// 	u.keys <- k
+		// }
+		// u.sendKeys2(keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT))
 	} else {
+		// keySeq := []*key{keyPress(c), keySync(), keyRelease(c), keySync()}
+		// for _, k := range keySeq {
+		// 	u.keys <- k
+		// }
+		// u.sendKeys2(keyPress(c), keySync(), keyRelease(c), keySync())
 		errc := u.sendKeys(done, keySequence(keyPress(c), keySync(), keyRelease(c), keySync()))
 		if err := <-errc; err != nil {
-			log.Errorf("Got error: %v", err)
+			log.Error().Caller().Err(err).
+				Msg("Got error.")
 		}
 	}
 }
 
 func (u *VirtualKeyboardDevice) TypeRune(r rune) {
 	if !unicode.In(r, unicode.PrintRanges...) {
-		log.Error(fmt.Errorf("rune %c (%U) is not a printable character", r, r))
+		log.Error().Caller().Err(fmt.Errorf("rune %c (%U) is not a printable character", r, r)).
+			Msg("Got error.")
 	}
 	keyCode, isUpperCase := CodeAndCase(r)
 	u.TypeKey(keyCode, isUpperCase)
+}
+
+func (u *VirtualKeyboardDevice) sendKeys2(keys ...*key) {
+	for _, k := range keys {
+		rv := C.libevdev_uinput_write_event(u.uidev, C.uint(k.keyType), C.uint(k.keyCode), C.int(k.value))
+		if rv < 0 {
+			fmt.Printf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
+		}
+	}
 }
 
 func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key) <-chan error {
@@ -254,6 +310,7 @@ func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key
 				if rv < 0 {
 					out <- fmt.Errorf("failed send key event type: %v code: %v value %v", k.keyType, k.keyCode, k.value)
 				}
+				time.Sleep(time.Millisecond)
 			}
 		}
 		wg.Done()
@@ -292,7 +349,8 @@ func (u *VirtualKeyboardDevice) TypeString(str string) {
 			break
 		}
 		if err != nil {
-			log.Errorf("Error reading rune in string: %v", err)
+			log.Error().Caller().Err(err).
+				Msg("Error reading rune in string.")
 		}
 		switch r {
 		case ' ':
@@ -305,6 +363,9 @@ func (u *VirtualKeyboardDevice) TypeString(str string) {
 
 // Close will gracefully remove a virtual keyboard, freeing memory and file descriptors
 func (u *VirtualKeyboardDevice) Close() {
+	log.Debug().Caller().
+		Msg("Closing virtual keyboard device.")
+	u.wg.Wait()
 	C.libevdev_uinput_destroy(u.uidev)
 	C.libevdev_free(u.dev)
 }

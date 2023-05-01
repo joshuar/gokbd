@@ -1,0 +1,28 @@
+# Ignore everything
+*
+
+# But not these files...
+!/.gitignore
+
+!*.go
+!translations/**/*.json
+!*.yml
+!*.yaml
+!go.sum
+!go.mod
+
+!README.md
+!LICENSE
+!CHANGELOG.md
+!assets/
+!docs/**/*.md
+!docs/**/*.png
+!tools/
+
+# !Makefile
+
+# ...even if they are in subdirectories
+!*/
+.vscode/settings.json
+
+dist/

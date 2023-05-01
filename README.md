@@ -1,3 +1,10 @@
+<!--
+ Copyright (c) 2023 Joshua Rich <joshua.rich@gmail.com>
+ 
+ This software is released under the MIT License.
+ https://opensource.org/licenses/MIT
+-->
+
 # gokbd
 
 [![gokbd](https://goreportcard.com/badge/github.com/joshuar/gokbd?style=flat-square)](https://goreportcard.com/report/github.com/joshuar/gokbd)

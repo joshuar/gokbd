@@ -1,12 +1,24 @@
+// Copyright (c) 2023 Joshua Rich <joshua.rich@gmail.com>
+// 
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
+
 package main
 
 import (
+	"os"
+
 	"github.com/joshuar/gokbd"
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog/pkgerrors"
 )
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
 	vDev := gokbd.NewVirtualKeyboard("gokbd test")
 	vDev.TypeRune('H')
 	vDev.TypeRune('e')
