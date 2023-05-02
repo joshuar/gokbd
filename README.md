@@ -12,8 +12,10 @@
 
 ## About
 
-This is an elementary library using libevdev to talk to a keyboard on Linux. It
-allows snooping the keys pressed as well as typing out keys.
+This is an elementary library using
+[libevdev](https://www.freedesktop.org/wiki/Software/libevdev/) to talk to a
+keyboard on Linux. It allows snooping the keys pressed as well as typing out
+keys.
 
 ## Usage
 
@@ -21,4 +23,33 @@ allows snooping the keys pressed as well as typing out keys.
 import gokbd "github.com/joshuar/gokbd"
 ```
 
-See the examples under the `examples/` directory.
+Examples for reading what keys are being typed (snooping) and writing to a
+virtual keyboard are available under the `examples/` directory. To run them:
+
+```shell
+go run examples/snoop/main.go # snooping
+go run examples/type/main.go # typing
+```
+
+## Permissions
+
+You may need to grant additional permissions to the user running any program
+using `gokbd`.
+
+- To read (snoop) from keyboards, the user will need to be part of the `input`
+  group. Typically, the user can be added with the following command:
+
+```shell
+sudo gpasswd -a $USER input
+```
+
+- To create a virtual keyboard and write to it, the user will need access to the
+  [kernel uinput
+  device](https://kernel.org/doc/html/latest/input/uinput.html). Typically, this
+  can be granted with a [udev rule](https://opensource.com/article/18/11/udev)
+  like the following:
+
+```shell
+echo KERNEL==\"uinput\", GROUP=\"$USER\", MODE:=\"0660\" | sudo tee /etc/udev/rules.d/99-$USER.rules
+sudo udevadm trigger
+```
