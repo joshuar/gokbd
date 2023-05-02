@@ -12,6 +12,8 @@ import (
 import (
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestKeyboardDevice_Close(t *testing.T) {
@@ -39,7 +41,8 @@ func TestKeyboardDevice_Close(t *testing.T) {
 }
 
 func testKeyboardDevice_isKeyboard(t *testing.T) {
-	virtualKbd := NewVirtualKeyboard("gokbdtest")
+	virtualKbd, err := NewVirtualKeyboard("gokbdtest")
+	assert.Nil(t, err)
 	kbds := OpenKeyboardDevices()
 	realKbd := <-kbds
 	type fields struct {
@@ -161,22 +164,36 @@ func TestSnoopAllKeyboards(t *testing.T) {
 	}
 }
 
-func TestNewVirtualKeyboard(t *testing.T) {
+func testNewVirtualKeyboard(t *testing.T) {
 	type args struct {
 		name string
 	}
 	tests := []struct {
-		name string
-		args args
-		want *VirtualKeyboardDevice
+		name    string
+		args    args
+		want    *VirtualKeyboardDevice
+		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "test successful creation",
+			args: args{name: "gokdb-successful-test"},
+		},
+		{
+			name:    "test empty string",
+			args:    args{name: ""},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewVirtualKeyboard(tt.args.name); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewVirtualKeyboard() = %v, want %v", got, tt.want)
+			_, err := NewVirtualKeyboard(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewVirtualKeyboard() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
+			// if !reflect.DeepEqual(got, tt.want) {
+			// 	t.Errorf("NewVirtualKeyboard() = %v, want %v", got, tt.want)
+			// }
 		})
 	}
 }

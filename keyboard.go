@@ -165,7 +165,10 @@ type VirtualKeyboardDevice struct {
 }
 
 // NewVirtualKeyboard will create a new virtual keyboard device (with the name passed in)
-func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
+func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
+	if name == "" {
+		return nil, errors.New("no name provided")
+	}
 	var uidev *C.struct_libevdev_uinput
 
 	dev := C.libevdev_new()
@@ -186,9 +189,7 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 
 	rv := C.libevdev_uinput_create_from_device(dev, C.LIBEVDEV_UINPUT_OPEN_MANAGED, &uidev)
 	if rv > 0 {
-		log.Error().Caller().
-			Msgf("Failed to create new uinput device: %v.", rv)
-		return nil
+		return nil, errors.New("failed to create new uinput device")
 	}
 	log.Debug().Caller().
 		Msgf("Virtual keyboard created at %s.",
@@ -197,7 +198,7 @@ func NewVirtualKeyboard(name string) *VirtualKeyboardDevice {
 	return &VirtualKeyboardDevice{
 		uidev: uidev,
 		dev:   dev,
-	}
+	}, nil
 }
 
 type key struct {

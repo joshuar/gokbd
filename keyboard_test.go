@@ -20,3 +20,7 @@ func TestOpenKeyboardDevices(t *testing.T) {
 func TestKeyboardDevice_isKeyboard(t *testing.T) {
 	testKeyboardDevice_isKeyboard(t)
 }
+
+func TestNewVirtualKeyboard(t *testing.T) {
+	testNewVirtualKeyboard(t)
+}
