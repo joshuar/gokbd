@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// ?INFO "go test" does not support cgo, so need to "fake" the test functions.
-// ? See keyboard_test_cgo.go for actual test code.
+// * "go test" does not support cgo, so need to "fake" the test functions.
+// * See keyboard_test_cgo.go for actual test code.
 
 func TestOpenKeyboardDevice(t *testing.T) {
 	testOpenKeyboardDevice(t)
@@ -38,4 +38,8 @@ func TestVirtualKeyboardDevice_TypeRune(t *testing.T) {
 
 func TestVirtualKeyboardDevice_TypeString(t *testing.T) {
 	testVirtualKeyboardDevice_TypeString(t)
+}
+
+func TestVirtualKeyboardDevice_Grab(t *testing.T) {
+	testVirtualKeyboardDevice_Grab(t)
 }

@@ -187,12 +187,15 @@ func testVirtualKeyboardDevice_TypeKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testVirtualKbd, err := NewVirtualKeyboard(tt.name)
+			u, err := NewVirtualKeyboard(tt.name)
 			assert.Nil(t, err)
-			if err := testVirtualKbd.TypeKey(tt.args.c, tt.args.holdShift); (err != nil) != tt.wantErr {
+			unGrab, err := u.Grab()
+			assert.Nil(t, err)
+			if err := u.TypeKey(tt.args.c, tt.args.holdShift); (err != nil) != tt.wantErr {
 				t.Errorf("VirtualKeyboardDevice.TypeKey() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			testVirtualKbd.Close()
+			unGrab()
+			u.Close()
 		})
 	}
 }
@@ -231,9 +234,12 @@ func testVirtualKeyboardDevice_TypeRune(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			u, err := NewVirtualKeyboard(tt.name)
 			assert.Nil(t, err)
+			unGrab, err := u.Grab()
+			assert.Nil(t, err)
 			if err := u.TypeRune(tt.args.r); (err != nil) != tt.wantErr {
 				t.Errorf("VirtualKeyboardDevice.TypeRune() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			unGrab()
 			u.Close()
 		})
 	}
@@ -268,10 +274,40 @@ func testVirtualKeyboardDevice_TypeString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			u, err := NewVirtualKeyboard(tt.name)
 			assert.Nil(t, err)
+			unGrab, err := u.Grab()
+			assert.Nil(t, err)
 			if err := u.TypeString(tt.args.str); (err != nil) != tt.wantErr {
 				t.Errorf("VirtualKeyboardDevice.TypeString() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			unGrab()
 			u.Close()
+		})
+	}
+}
+
+func testVirtualKeyboardDevice_Grab(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    func() error
+		wantErr bool
+	}{
+		{
+			name:    "test grab",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := NewVirtualKeyboard(tt.name)
+			assert.Nil(t, err)
+			_, err = u.Grab()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("VirtualKeyboardDevice.Grab() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			// if !reflect.DeepEqual(got, tt.want) {
+			// 	t.Error("VirtualKeyboardDevice.Grab()")
+			// }
 		})
 	}
 }
