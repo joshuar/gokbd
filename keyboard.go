@@ -216,33 +216,6 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	}, nil
 }
 
-func (u *VirtualKeyboardDevice) TypeKey(c int, holdShift bool) {
-	done := make(chan struct{})
-	defer close(done)
-	if holdShift {
-		errc := u.sendKeys(done, keySequence(keyPress(C.KEY_LEFTSHIFT), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT)))
-		if err := <-errc; err != nil {
-			log.Error().Caller().Err(err).
-				Msg("Got error.")
-		}
-	} else {
-		errc := u.sendKeys(done, keySequence(keyPress(c), keySync(), keyRelease(c), keySync()))
-		if err := <-errc; err != nil {
-			log.Error().Caller().Err(err).
-				Msg("Got error.")
-		}
-	}
-}
-
-func (u *VirtualKeyboardDevice) TypeRune(r rune) {
-	if !unicode.In(r, unicode.PrintRanges...) {
-		log.Error().Caller().Err(fmt.Errorf("rune %c (%U) is not a printable character", r, r)).
-			Msg("Got error.")
-	}
-	keyCode, isUpperCase := CodeAndCase(r)
-	u.TypeKey(keyCode, isUpperCase)
-}
-
 func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key) <-chan error {
 	var wg sync.WaitGroup
 	out := make(chan error)
@@ -276,18 +249,47 @@ func (u *VirtualKeyboardDevice) sendKeys(done <-chan struct{}, ev ...<-chan *key
 	return out
 }
 
+func (u *VirtualKeyboardDevice) TypeKey(c int, holdShift bool) error {
+	done := make(chan struct{})
+	defer close(done)
+	if holdShift {
+		errc := u.sendKeys(done, keySequence(keyPress(C.KEY_LEFTSHIFT), keySync(), keyPress(c), keySync(), keyRelease(c), keySync(), keyRelease(C.KEY_LEFTSHIFT), keySync()))
+		if err := <-errc; err != nil {
+			return err
+		}
+	} else {
+		errc := u.sendKeys(done, keySequence(keyPress(c), keySync(), keyRelease(c), keySync()))
+		if err := <-errc; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (u *VirtualKeyboardDevice) TypeRune(r rune) error {
+	if !unicode.In(r, unicode.PrintRanges...) {
+		return fmt.Errorf("rune %c (%U) is not a printable character", r, r)
+	}
+	keyCode, isUpperCase := CodeAndCase(r)
+	if keyCode == 0 {
+		return fmt.Errorf("rune %c (%U) is not in rune map", r, r)
+	} else {
+		return u.TypeKey(keyCode, isUpperCase)
+	}
+}
+
 // TypeSpace is a high level way to "type" a space character (effectively, press/release the spacebar)
-func (u *VirtualKeyboardDevice) TypeSpace() {
-	u.TypeKey(C.KEY_SPACE, false)
+func (u *VirtualKeyboardDevice) TypeSpace() error {
+	return u.TypeKey(C.KEY_SPACE, false)
 }
 
 // TypeBackspace allows you to "type" a backspace key and remove a single character
-func (u *VirtualKeyboardDevice) TypeBackspace() {
-	u.TypeKey(C.KEY_BACKSPACE, false)
+func (u *VirtualKeyboardDevice) TypeBackspace() error {
+	return u.TypeKey(C.KEY_BACKSPACE, false)
 }
 
 // TypeString is a high level function that makes it easy to "type" out a string to the virtual keyboard
-func (u *VirtualKeyboardDevice) TypeString(str string) {
+func (u *VirtualKeyboardDevice) TypeString(str string) error {
 	s := strings.NewReader(str)
 	for {
 		r, _, err := s.ReadRune() // returns rune, nbytes, error
@@ -295,16 +297,22 @@ func (u *VirtualKeyboardDevice) TypeString(str string) {
 			break
 		}
 		if err != nil {
-			log.Error().Caller().Err(err).
-				Msg("Error reading rune in string.")
+			return err
 		}
 		switch r {
 		case ' ':
-			u.TypeSpace()
+			err := u.TypeSpace()
+			if err != nil {
+				return err
+			}
 		default:
-			u.TypeRune(r)
+			err := u.TypeRune(r)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // Close will gracefully remove a virtual keyboard, freeing memory and file descriptors
