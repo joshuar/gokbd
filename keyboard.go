@@ -66,8 +66,8 @@ func OpenKeyboardDevice(devPath string) (*KeyboardDevice, error) {
 	}, nil
 }
 
-// OpenKeyboardDevices will open all currently connected keyboards passing them out through a channel for further processing
-func OpenKeyboardDevices() <-chan *KeyboardDevice {
+// OpenAllKeyboardDevices will open all currently connected keyboards passing them out through a channel for further processing
+func OpenAllKeyboardDevices() <-chan *KeyboardDevice {
 	kbdChan := make(chan *KeyboardDevice)
 	go func() {
 		for _, kbdPath := range findAllInputDevices() {
@@ -118,44 +118,59 @@ func findAllInputDevices() []string {
 
 // SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  Keyboards are passed in through a channel, see OpenKeyboardDevices for an example of opening all connected keyboards
 func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
-	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
 	keys := make(chan KeyEvent)
 	var wg sync.WaitGroup
-	kbdSnoop := func(kbd *KeyboardDevice) {
-		defer wg.Done()
-		for {
-			var ev C.struct_input_event
-			C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
-			e := NewKeyEvent(ev)
-			if e.Value != 2 {
-				switch e.EventName {
-				case "KEY_CAPSLOCK":
-					kbd.modifiers.ToggleCapsLock()
-				case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
-					kbd.modifiers.ToggleShift()
-				case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
-					kbd.modifiers.ToggleCtrl()
-				case "KEY_LEFTALT", "KEY_RIGHTALT":
-					kbd.modifiers.ToggleAlt()
-				case "KEY_LEFTMETA", "KEY_RIGHTMETA":
-					kbd.modifiers.ToggleMeta()
-				}
-			}
-			e.updateRune(kbd.modifiers)
-			keys <- *e
-		}
-	}
 	for kbd := range kbds {
 		log.Debug().Caller().
 			Msgf("Tracking keys on device %s.", kbd.fd.Name())
 		wg.Add(1)
-		go kbdSnoop(kbd)
+		go kbdSnoop(kbd, &wg, keys)
 	}
 	go func() {
 		defer close(keys)
 		wg.Wait()
 	}()
 	return keys
+}
+
+// SnoopKeyboard will snoop or listen for all key events on the given keyboard
+// device.
+func SnoopKeyboard(kbd *KeyboardDevice) <-chan KeyEvent {
+	keys := make(chan KeyEvent)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go kbdSnoop(kbd, &wg, keys)
+	go func() {
+		defer close(keys)
+		wg.Wait()
+	}()
+	return keys
+}
+
+func kbdSnoop(kbd *KeyboardDevice, wg *sync.WaitGroup, keys chan KeyEvent) {
+	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
+	defer wg.Done()
+	for {
+		var ev C.struct_input_event
+		C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
+		e := NewKeyEvent(ev)
+		if e.Value != 2 {
+			switch e.EventName {
+			case "KEY_CAPSLOCK":
+				kbd.modifiers.ToggleCapsLock()
+			case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
+				kbd.modifiers.ToggleShift()
+			case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
+				kbd.modifiers.ToggleCtrl()
+			case "KEY_LEFTALT", "KEY_RIGHTALT":
+				kbd.modifiers.ToggleAlt()
+			case "KEY_LEFTMETA", "KEY_RIGHTMETA":
+				kbd.modifiers.ToggleMeta()
+			}
+		}
+		e.updateRune(kbd.modifiers)
+		keys <- *e
+	}
 }
 
 // VirtualKeyboardDevice represents a "virtual" (uinput) keyboard device
@@ -199,45 +214,6 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 		uidev: uidev,
 		dev:   dev,
 	}, nil
-}
-
-type key struct {
-	keyType, keyCode, value int
-}
-
-func keyPress(c int) *key {
-	return &key{
-		keyType: C.EV_KEY,
-		keyCode: c,
-		value:   1,
-	}
-}
-
-func keyRelease(c int) *key {
-	return &key{
-		keyType: C.EV_KEY,
-		keyCode: c,
-		value:   0,
-	}
-}
-
-func keySync() *key {
-	return &key{
-		keyType: C.EV_SYN,
-		keyCode: C.SYN_REPORT,
-		value:   0,
-	}
-}
-
-func keySequence(keys ...*key) <-chan *key {
-	out := make(chan *key)
-	go func() {
-		for _, n := range keys {
-			out <- n
-		}
-		close(out)
-	}()
-	return out
 }
 
 func (u *VirtualKeyboardDevice) TypeKey(c int, holdShift bool) {
@@ -337,4 +313,9 @@ func (u *VirtualKeyboardDevice) Close() {
 		Msg("Closing virtual keyboard device.")
 	C.libevdev_uinput_destroy(u.uidev)
 	C.libevdev_free(u.dev)
+}
+
+// Device will return the device that was created for this virtual keyboard
+func (u *VirtualKeyboardDevice) Device() string {
+	return C.GoString(C.libevdev_uinput_get_devnode(u.uidev))
 }
