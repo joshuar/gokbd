@@ -22,6 +22,8 @@ func testNewKeyEvent(t *testing.T) {
 	assert.Nil(t, err)
 	k, err := OpenKeyboardDevice(v.DevNode)
 	assert.Nil(t, err)
+	_, err = k.Grab()
+	assert.Nil(t, err)
 	keyChan := SnoopKeyboard(k)
 	var wantKey KeyEvent
 	go func() {
@@ -60,6 +62,8 @@ func testKeyEvent_updateRune(t *testing.T) {
 	v, err := NewVirtualKeyboard("gokbd test")
 	assert.Nil(t, err)
 	k, err := OpenKeyboardDevice(v.DevNode)
+	assert.Nil(t, err)
+	_, err = k.Grab()
 	assert.Nil(t, err)
 	keyChan := SnoopKeyboard(k)
 	var wantKey KeyEvent
