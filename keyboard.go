@@ -27,14 +27,16 @@ import (
 
 const devicePath = "/dev/input"
 
-// KeyboardDevice represents a physical keyboard, it contains the dev struct, file descriptor and state of any "modifier" keys
+// KeyboardDevice represents a physical keyboard, it contains the dev struct,
+// file descriptor and state of any "modifier" keys
 type KeyboardDevice struct {
 	dev       *C.struct_libevdev
 	fd        *os.File
 	modifiers *KeyModifiers
 }
 
-// Close will gracefully handle closing a keyboard device, freeing memory and file descriptors
+// Close will gracefully handle closing a keyboard device, freeing memory and
+// file descriptors
 func (k *KeyboardDevice) Close() {
 	C.libevdev_free(k.dev)
 	k.fd.Close()
@@ -48,7 +50,8 @@ func (k *KeyboardDevice) isKeyboard() bool {
 	}
 }
 
-// OpenKeyboardDevice will open a specific keyboard device (from the device path passed as a string)
+// OpenKeyboardDevice will open a specific keyboard device (from the device path
+// passed as a string)
 func OpenKeyboardDevice(devPath string) (*KeyboardDevice, error) {
 	dev := C.libevdev_new()
 	fd, err := os.Open(devPath)
@@ -66,7 +69,8 @@ func OpenKeyboardDevice(devPath string) (*KeyboardDevice, error) {
 	}, nil
 }
 
-// OpenAllKeyboardDevices will open all currently connected keyboards passing them out through a channel for further processing
+// OpenAllKeyboardDevices will open all currently connected keyboards passing
+// them out through a channel for further processing
 func OpenAllKeyboardDevices() <-chan *KeyboardDevice {
 	kbdChan := make(chan *KeyboardDevice)
 	go func() {
@@ -175,11 +179,15 @@ func kbdSnoop(kbd *KeyboardDevice, wg *sync.WaitGroup, keys chan KeyEvent) {
 
 // VirtualKeyboardDevice represents a "virtual" (uinput) keyboard device
 type VirtualKeyboardDevice struct {
-	uidev *C.struct_libevdev_uinput
-	dev   *C.struct_libevdev
+	uidev   *C.struct_libevdev_uinput
+	dev     *C.struct_libevdev
+	Name    string
+	DevNode string
+	SysPath string
 }
 
-// NewVirtualKeyboard will create a new virtual keyboard device (with the name passed in)
+// NewVirtualKeyboard will create a new virtual keyboard device (with the name
+// passed in)
 func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	if name == "" {
 		return nil, errors.New("no name provided")
@@ -192,6 +200,7 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	C.libevdev_enable_event_type(dev, C.EV_REL)
 	C.libevdev_enable_event_type(dev, C.EV_KEY)
 	C.libevdev_enable_event_type(dev, C.EV_REP)
+	C.libevdev_enable_event_type(dev, C.EV_SYN)
 	// expose all physical ascii keys on a standard qwerty keyboard
 	for k := range runeMap {
 		C.libevdev_enable_event_code(dev, C.EV_KEY, C.uint(k), nil)
@@ -211,8 +220,11 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 			C.GoString(C.libevdev_uinput_get_devnode(uidev)))
 	time.Sleep(time.Millisecond * 500)
 	return &VirtualKeyboardDevice{
-		uidev: uidev,
-		dev:   dev,
+		uidev:   uidev,
+		dev:     dev,
+		Name:    name,
+		DevNode: C.GoString(C.libevdev_uinput_get_devnode(uidev)),
+		SysPath: C.GoString(C.libevdev_uinput_get_syspath(uidev)),
 	}, nil
 }
 
@@ -278,17 +290,20 @@ func (u *VirtualKeyboardDevice) TypeRune(r rune) error {
 	}
 }
 
-// TypeSpace is a high level way to "type" a space character (effectively, press/release the spacebar)
+// TypeSpace is a high level way to "type" a space character (effectively,
+// press/release the spacebar)
 func (u *VirtualKeyboardDevice) TypeSpace() error {
 	return u.TypeKey(C.KEY_SPACE, false)
 }
 
-// TypeBackspace allows you to "type" a backspace key and remove a single character
+// TypeBackspace allows you to "type" a backspace key and remove a single
+// character
 func (u *VirtualKeyboardDevice) TypeBackspace() error {
 	return u.TypeKey(C.KEY_BACKSPACE, false)
 }
 
-// TypeString is a high level function that makes it easy to "type" out a string to the virtual keyboard
+// TypeString is a high level function that makes it easy to "type" out a string
+// to the virtual keyboard
 func (u *VirtualKeyboardDevice) TypeString(str string) error {
 	s := strings.NewReader(str)
 	for {
@@ -315,7 +330,8 @@ func (u *VirtualKeyboardDevice) TypeString(str string) error {
 	return nil
 }
 
-// Close will gracefully remove a virtual keyboard, freeing memory and file descriptors
+// Close will gracefully remove a virtual keyboard, freeing memory and file
+// descriptors
 func (u *VirtualKeyboardDevice) Close() {
 	log.Debug().Caller().
 		Msg("Closing virtual keyboard device.")
@@ -323,7 +339,24 @@ func (u *VirtualKeyboardDevice) Close() {
 	C.libevdev_free(u.dev)
 }
 
-// Device will return the device that was created for this virtual keyboard
-func (u *VirtualKeyboardDevice) Device() string {
-	return C.GoString(C.libevdev_uinput_get_devnode(u.uidev))
+// Grab will grab the virtual keyboard which prevents any other clients and the
+// kernel from recieving events from it. The returned func can be used to ungrab
+// the keyboard, allowing other clients and the kernel to see its events again.
+func (u *VirtualKeyboardDevice) Grab() (func() error, error) {
+	kbd, err := OpenKeyboardDevice(u.DevNode)
+	if err != nil {
+		return nil, fmt.Errorf("could not open %s", u.Name)
+	}
+	rv := C.libevdev_grab(kbd.dev, C.LIBEVDEV_GRAB)
+	if rv < 0 {
+		return nil, errors.New("failed to grab device")
+	}
+	ungrab := func() error {
+		rv := C.libevdev_grab(kbd.dev, C.LIBEVDEV_UNGRAB)
+		if rv < 0 {
+			return errors.New("failed to ungrab device")
+		}
+		return nil
+	}
+	return ungrab, nil
 }
