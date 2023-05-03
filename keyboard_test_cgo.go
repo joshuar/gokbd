@@ -54,7 +54,7 @@ func TestKeyboardDevice_Close(t *testing.T) {
 func testKeyboardDevice_isKeyboard(t *testing.T) {
 	virtualKbd, err := NewVirtualKeyboard("gokbdtest")
 	assert.Nil(t, err)
-	kbds := OpenKeyboardDevices()
+	kbds := OpenAllKeyboardDevices()
 	realKbd := <-kbds
 	type fields struct {
 		dev       *C.struct_libevdev
@@ -148,7 +148,7 @@ func testOpenKeyboardDevices(t *testing.T) {
 			// if got := OpenKeyboardDevices(); !reflect.DeepEqual(got, tt.want) {
 			// 	t.Errorf("OpenKeyboardDevices() = %v, want %v", got, tt.want)
 			// }
-			if got := OpenKeyboardDevices(); got == nil {
+			if got := OpenAllKeyboardDevices(); got == nil {
 				t.Errorf("OpenKeyboardDevices() = %v, want %v", got, tt.want)
 			}
 		})
@@ -209,141 +209,42 @@ func testNewVirtualKeyboard(t *testing.T) {
 	}
 }
 
-func test_keyPress(t *testing.T) {
-	aKey := &key{
-		keyType: C.EV_KEY,
-		keyCode: 30,
-		value:   1,
-	}
-	type args struct {
-		c int
-	}
-	tests := []struct {
-		name string
-		args args
-		want *key
-	}{
-		{
-			name: "test press",
-			args: args{c: 30},
-			want: aKey,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := keyPress(tt.args.c); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("keyPress() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func test_keyRelease(t *testing.T) {
-	aKey := &key{
-		keyType: C.EV_KEY,
-		keyCode: 30,
-		value:   0,
-	}
-	type args struct {
-		c int
-	}
-	tests := []struct {
-		name string
-		args args
-		want *key
-	}{
-		{
-			name: "test release",
-			args: args{c: 30},
-			want: aKey,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := keyRelease(tt.args.c); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("keyRelease() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func test_keySync(t *testing.T) {
-	k := &key{
-		keyType: C.EV_SYN,
-		keyCode: C.SYN_REPORT,
-		value:   0,
-	}
-	tests := []struct {
-		name string
-		want *key
-	}{
-		{
-			name: "test sync",
-			want: k,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := keySync(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("keySync() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func test_keySequence(t *testing.T) {
-	keyList := []*key{
-		keyPress(30),
-		keySync(),
-		keyRelease(30),
-		keySync(),
-	}
-	type args struct {
-		keys []*key
-	}
-	tests := []struct {
-		name string
-		args args
-		want []*key
-	}{
-		{
-			name: "test key sequence",
-			args: args{keys: keyList},
-			want: keyList,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getValues(keySequence(tt.args.keys...)); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("keySequence() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestVirtualKeyboardDevice_TypeKey(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
+func testVirtualKeyboardDevice_TypeKey(t *testing.T) {
+	keyToType1 := 'a'
+	keyCode1, isUpperCase1 := CodeAndCase(keyToType1)
+	keyToType2 := 'A'
+	keyCode2, isUpperCase2 := CodeAndCase(keyToType2)
 	type args struct {
 		c         int
 		holdShift bool
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
+		name string
+		args args
+		want rune
 	}{
-		// TODO: Add test cases.
+		{
+			name: "test type key (no shift)",
+			args: args{c: keyCode1, holdShift: isUpperCase1},
+			want: keyToType1,
+		},
+		{
+			name: "test type key (shift)",
+			args: args{c: keyCode2, holdShift: isUpperCase2},
+			want: keyToType2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
-			}
-			u.TypeKey(tt.args.c, tt.args.holdShift)
+			testVirtualKbd, err := NewVirtualKeyboard(tt.name)
+			assert.Nil(t, err)
+			testKbd, err := OpenKeyboardDevice(testVirtualKbd.Device())
+			assert.Nil(t, err)
+			keysTyped := SnoopKeyboard(testKbd)
+			testVirtualKbd.TypeKey(tt.args.c, tt.args.holdShift)
+			key := <-keysTyped
+			assert.Equal(t, tt.want, key.AsRune)
+			testVirtualKbd.Close()
 		})
 	}
 }

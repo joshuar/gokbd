@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// ?INFO "go test" does not support cgo, so need to "fake" the test functions.
+// ? See keyboard_test_cgo.go for actual test code.
+
 func TestOpenKeyboardDevice(t *testing.T) {
 	testOpenKeyboardDevice(t)
 }
@@ -25,18 +28,6 @@ func TestNewVirtualKeyboard(t *testing.T) {
 	testNewVirtualKeyboard(t)
 }
 
-func Test_keyPress(t *testing.T) {
-	test_keyPress(t)
-}
-
-func Test_keyRelease(t *testing.T) {
-	test_keyPress(t)
-}
-
-func Test_keySync(t *testing.T) {
-	test_keyPress(t)
-}
-
-func Test_keySequence(t *testing.T) {
-	test_keySequence(t)
+func TestVirtualKeyboardDevice_TypeKey(t *testing.T) {
+	testVirtualKeyboardDevice_TypeKey(t)
 }
