@@ -27,12 +27,31 @@ import (
 
 const devicePath = "/dev/input"
 
+func grabDevice(dev *C.struct_libevdev) (func() error, error) {
+	rv := C.libevdev_grab(dev, C.LIBEVDEV_GRAB)
+	if rv < 0 {
+		return nil, errors.New("failed to grab device")
+	}
+	ungrab := func() error {
+		rv := C.libevdev_grab(dev, C.LIBEVDEV_UNGRAB)
+		if rv < 0 {
+			return errors.New("failed to ungrab device")
+		}
+		return nil
+	}
+	return ungrab, nil
+}
+
 // KeyboardDevice represents a physical keyboard, it contains the dev struct,
 // file descriptor and state of any "modifier" keys
 type KeyboardDevice struct {
 	dev       *C.struct_libevdev
 	fd        *os.File
 	modifiers *KeyModifiers
+}
+
+func (k *KeyboardDevice) Grab() (func() error, error) {
+	return grabDevice(k.dev)
 }
 
 // Close will gracefully handle closing a keyboard device, freeing memory and
@@ -347,16 +366,5 @@ func (u *VirtualKeyboardDevice) Grab() (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not open %s", u.Name)
 	}
-	rv := C.libevdev_grab(kbd.dev, C.LIBEVDEV_GRAB)
-	if rv < 0 {
-		return nil, errors.New("failed to grab device")
-	}
-	ungrab := func() error {
-		rv := C.libevdev_grab(kbd.dev, C.LIBEVDEV_UNGRAB)
-		if rv < 0 {
-			return errors.New("failed to ungrab device")
-		}
-		return nil
-	}
-	return ungrab, nil
+	return grabDevice(kbd.dev)
 }
