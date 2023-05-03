@@ -7,6 +7,9 @@ package gokbd
 
 import "testing"
 
+// * "go test" does not support cgo, so need to "fake" the test functions.
+// * See keyEvent_test_cgo.go for actual test code.
+
 func TestNewKeyEvent(t *testing.T) {
 	testNewKeyEvent(t)
 }

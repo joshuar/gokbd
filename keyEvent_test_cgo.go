@@ -20,7 +20,7 @@ func testNewKeyEvent(t *testing.T) {
 	// keyboard produces without actually having a keyboard generate the key...
 	v, err := NewVirtualKeyboard("gokbd test")
 	assert.Nil(t, err)
-	k, err := OpenKeyboardDevice(v.Device())
+	k, err := OpenKeyboardDevice(v.DevNode)
 	assert.Nil(t, err)
 	keyChan := SnoopKeyboard(k)
 	var wantKey KeyEvent
@@ -59,7 +59,7 @@ func testKeyEvent_updateRune(t *testing.T) {
 	// keyboard produces without actually having a keyboard generate the key...
 	v, err := NewVirtualKeyboard("gokbd test")
 	assert.Nil(t, err)
-	k, err := OpenKeyboardDevice(v.Device())
+	k, err := OpenKeyboardDevice(v.DevNode)
 	assert.Nil(t, err)
 	keyChan := SnoopKeyboard(k)
 	var wantKey KeyEvent

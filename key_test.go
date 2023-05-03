@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// ?INFO "go test" does not support cgo, so need to "fake" the test functions.
-// ? See key_test_cgo.go for actual test code.
+// * "go test" does not support cgo, so need to "fake" the test functions.
+// * See key_test_cgo.go for actual test code.
 
 func Test_keyPress(t *testing.T) {
 	test_keyPress(t)
