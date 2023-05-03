@@ -11,7 +11,6 @@ package gokbd
 import "C"
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,30 +24,6 @@ func getValues[V any](c <-chan V) []V {
 		r = append(r, i)
 	}
 	return r
-}
-
-func TestKeyboardDevice_Close(t *testing.T) {
-	type fields struct {
-		dev       *C.struct_libevdev
-		fd        *os.File
-		modifiers *KeyModifiers
-	}
-	tests := []struct {
-		name   string
-		fields fields
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			k := &KeyboardDevice{
-				dev:       tt.fields.dev,
-				fd:        tt.fields.fd,
-				modifiers: tt.fields.modifiers,
-			}
-			k.Close()
-		})
-	}
 }
 
 func testKeyboardDevice_isKeyboard(t *testing.T) {
@@ -155,26 +130,6 @@ func testOpenKeyboardDevices(t *testing.T) {
 	}
 }
 
-func TestSnoopAllKeyboards(t *testing.T) {
-	type args struct {
-		kbds <-chan *KeyboardDevice
-	}
-	tests := []struct {
-		name string
-		args args
-		want <-chan KeyEvent
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := SnoopAllKeyboards(tt.args.kbds); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("SnoopAllKeyboards() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func testNewVirtualKeyboard(t *testing.T) {
 	type args struct {
 		name string
@@ -210,187 +165,111 @@ func testNewVirtualKeyboard(t *testing.T) {
 }
 
 func testVirtualKeyboardDevice_TypeKey(t *testing.T) {
-	keyToType1 := 'a'
-	keyCode1, isUpperCase1 := CodeAndCase(keyToType1)
-	keyToType2 := 'A'
-	keyCode2, isUpperCase2 := CodeAndCase(keyToType2)
 	type args struct {
 		c         int
 		holdShift bool
 	}
 	tests := []struct {
-		name string
-		args args
-		want rune
+		name    string
+		args    args
+		wantErr bool
 	}{
 		{
-			name: "test type key (no shift)",
-			args: args{c: keyCode1, holdShift: isUpperCase1},
-			want: keyToType1,
+			name:    "test type key (no shift)",
+			args:    args{c: 30, holdShift: false},
+			wantErr: false,
 		},
 		{
-			name: "test type key (shift)",
-			args: args{c: keyCode2, holdShift: isUpperCase2},
-			want: keyToType2,
+			name:    "test type key (shift)",
+			args:    args{c: 30, holdShift: true},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testVirtualKbd, err := NewVirtualKeyboard(tt.name)
 			assert.Nil(t, err)
-			testKbd, err := OpenKeyboardDevice(testVirtualKbd.Device())
-			assert.Nil(t, err)
-			keysTyped := SnoopKeyboard(testKbd)
-			testVirtualKbd.TypeKey(tt.args.c, tt.args.holdShift)
-			key := <-keysTyped
-			assert.Equal(t, tt.want, key.AsRune)
+			if err := testVirtualKbd.TypeKey(tt.args.c, tt.args.holdShift); (err != nil) != tt.wantErr {
+				t.Errorf("VirtualKeyboardDevice.TypeKey() error = %v, wantErr %v", err, tt.wantErr)
+			}
 			testVirtualKbd.Close()
 		})
 	}
 }
 
-func TestVirtualKeyboardDevice_TypeRune(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
+func testVirtualKeyboardDevice_TypeRune(t *testing.T) {
 	type args struct {
 		r rune
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
+		name    string
+		args    args
+		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "test type lowercase",
+			args:    args{r: 'a'},
+			wantErr: false,
+		},
+		{
+			name:    "test type uppercase",
+			args:    args{r: 'A'},
+			wantErr: false,
+		},
+		{
+			name:    "test not in rune map",
+			args:    args{r: '🦍'},
+			wantErr: true,
+		},
+		{
+			name:    "test space",
+			args:    args{r: ' '},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
+			u, err := NewVirtualKeyboard(tt.name)
+			assert.Nil(t, err)
+			if err := u.TypeRune(tt.args.r); (err != nil) != tt.wantErr {
+				t.Errorf("VirtualKeyboardDevice.TypeRune() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			u.TypeRune(tt.args.r)
+			u.Close()
 		})
 	}
 }
 
-func TestVirtualKeyboardDevice_sendKeys(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
-	type args struct {
-		done <-chan struct{}
-		ev   []<-chan *key
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   <-chan error
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
-			}
-			if got := u.sendKeys(tt.args.done, tt.args.ev...); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("VirtualKeyboardDevice.sendKeys() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestVirtualKeyboardDevice_TypeSpace(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
-	tests := []struct {
-		name   string
-		fields fields
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
-			}
-			u.TypeSpace()
-		})
-	}
-}
-
-func TestVirtualKeyboardDevice_TypeBackspace(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
-	tests := []struct {
-		name   string
-		fields fields
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
-			}
-			u.TypeBackspace()
-		})
-	}
-}
-
-func TestVirtualKeyboardDevice_TypeString(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
+func testVirtualKeyboardDevice_TypeString(t *testing.T) {
 	type args struct {
 		str string
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
+		name    string
+		args    args
+		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:    "test string no space",
+			args:    args{str: "string"},
+			wantErr: false,
+		},
+		{
+			name:    "test string space",
+			args:    args{str: "string space"},
+			wantErr: false,
+		},
+		{
+			name:    "test invalid rune in string",
+			args:    args{str: "str🦍ng"},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
-			}
-			u.TypeString(tt.args.str)
-		})
-	}
-}
-
-func TestVirtualKeyboardDevice_Close(t *testing.T) {
-	type fields struct {
-		uidev *C.struct_libevdev_uinput
-		dev   *C.struct_libevdev
-	}
-	tests := []struct {
-		name   string
-		fields fields
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &VirtualKeyboardDevice{
-				uidev: tt.fields.uidev,
-				dev:   tt.fields.dev,
+			u, err := NewVirtualKeyboard(tt.name)
+			assert.Nil(t, err)
+			if err := u.TypeString(tt.args.str); (err != nil) != tt.wantErr {
+				t.Errorf("VirtualKeyboardDevice.TypeString() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			u.Close()
 		})

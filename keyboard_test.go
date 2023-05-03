@@ -31,3 +31,11 @@ func TestNewVirtualKeyboard(t *testing.T) {
 func TestVirtualKeyboardDevice_TypeKey(t *testing.T) {
 	testVirtualKeyboardDevice_TypeKey(t)
 }
+
+func TestVirtualKeyboardDevice_TypeRune(t *testing.T) {
+	testVirtualKeyboardDevice_TypeRune(t)
+}
+
+func TestVirtualKeyboardDevice_TypeString(t *testing.T) {
+	testVirtualKeyboardDevice_TypeString(t)
+}
