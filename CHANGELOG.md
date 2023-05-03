@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.1](https://github.com/joshuar/gokbd/compare/v0.1.0...v0.1.1) (2023-05-03)
+
+
+### Features
+
+* **keyboard:** add a Grab function to grab a virtual keyboard for exclusive use ([0ae0b1c](https://github.com/joshuar/gokbd/commit/0ae0b1cc30bc591513904aad3be2371194fd8efc))
+* **keyboard:** extract grab logic into general function for real/virtual keyboards ([8ef01b8](https://github.com/joshuar/gokbd/commit/8ef01b8e284245c7d9a8a103a3f59b3220b9e783))
+
+
+### Bug Fixes
+
+* **examples:** utilise exposed device node in examples ([5739deb](https://github.com/joshuar/gokbd/commit/5739deb93ff134e6e3280ddda1dff620c0c37b25))
+
+
+### Miscellaneous Chores
+
+* release 0.1.1 ([65acb5e](https://github.com/joshuar/gokbd/commit/65acb5ea1c3b21137f618c7df574f56fe5da03da))
+
 ## 0.1.0 (2023-05-03)
 
 
