@@ -7,13 +7,14 @@
 
 # gokbd
 
-[![gokbd](https://goreportcard.com/badge/github.com/joshuar/gokbd?style=flat-square)](https://goreportcard.com/report/github.com/joshuar/gokbd)
-[![Go Reference](https://pkg.go.dev/badge/github.com/joshuar/gokbd.svg)](https://pkg.go.dev/github.com/joshuar/gokbd)
 ![GitHub](https://img.shields.io/github/license/joshuar/gokbd)
+[![Go Reference](https://pkg.go.dev/badge/github.com/joshuar/gokbd.svg)](https://pkg.go.dev/github.com/joshuar/gokbd)
+[![gokbd](https://goreportcard.com/badge/github.com/joshuar/gokbd?style=flat-square)](https://goreportcard.com/report/github.com/joshuar/gokbd)
+[![codecov](https://codecov.io/gh/joshuar/gokbd/branch/main/graph/badge.svg?token=2BDVOTORZB)](https://codecov.io/gh/joshuar/gokbd)
 
 ## About
 
-This is an elementary library using
+gokbd is a package that uses
 [libevdev](https://www.freedesktop.org/wiki/Software/libevdev/) to talk to a
 keyboard on Linux. It allows snooping the keys pressed as well as typing out
 keys.
