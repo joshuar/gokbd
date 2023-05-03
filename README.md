@@ -9,6 +9,7 @@
 
 [![gokbd](https://goreportcard.com/badge/github.com/joshuar/gokbd?style=flat-square)](https://goreportcard.com/report/github.com/joshuar/gokbd)
 [![Go Reference](https://pkg.go.dev/badge/github.com/joshuar/gokbd.svg)](https://pkg.go.dev/github.com/joshuar/gokbd)
+![GitHub](https://img.shields.io/github/license/joshuar/gokbd)
 
 ## About
 
