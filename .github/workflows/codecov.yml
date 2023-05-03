@@ -17,6 +17,10 @@ jobs:
       with:
         go-version: '1.20'
 
+    - name: Install dependencies
+      id: install_linux_deps
+      run: sudo apt-get install -y libevdev-dev
+
     - name: Download modules
       run: go mod download
 
