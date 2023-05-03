@@ -30,7 +30,6 @@ func main() {
 
 	keys := gokbd.SnoopKeyboard(kbd)
 
-	// keys := gokbd.SnoopAllKeyboards(gokbd.OpenKeyboardDevices())
 	go func() {
 		for k := range keys {
 			if k.Value == 1 && k.TypeName == "EV_KEY" {
@@ -44,6 +43,7 @@ func main() {
 			}
 		}
 	}()
+
 	vDev.TypeString("Hello there!")
 	vDev.Close()
 }
