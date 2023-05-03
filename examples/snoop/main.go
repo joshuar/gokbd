@@ -23,7 +23,7 @@ func main() {
 	if err != nil {
 		log.Panic().Msg("Could not create a virtual keyboard!")
 	}
-	kbd, err := gokbd.OpenKeyboardDevice(vDev.Device())
+	kbd, err := gokbd.OpenKeyboardDevice(vDev.DevNode)
 	if err != nil {
 		log.Panic().Msg("Could not access virtual keyboard!")
 	}

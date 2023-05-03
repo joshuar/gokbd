@@ -20,9 +20,9 @@ func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
-	vDev, err := gokbd.NewVirtualKeyboard("gokbd test")
+	vDev, err := gokbd.NewVirtualKeyboard("gokbd typing example")
 	if err != nil {
-		log.Panic().Msg("Could not create a virtual keyboard!")
+		log.Panic().Err(err).Msg("Could not create a virtual keyboard!")
 	}
 	vDev.TypeRune('H')
 	vDev.TypeRune('e')
