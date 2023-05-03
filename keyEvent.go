@@ -1,5 +1,5 @@
 // Copyright (c) 2023 Joshua Rich <joshua.rich@gmail.com>
-// 
+//
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
@@ -38,6 +38,7 @@ func NewKeyEvent(ev C.struct_input_event) *KeyEvent {
 func (kev *KeyEvent) updateRune(modifiers *KeyModifiers) {
 	switch {
 	case modifiers.CapsLock:
+		fallthrough
 	case modifiers.Shift:
 		kev.AsRune = runeMap[int(kev.eventRaw.code)].uc
 	}
