@@ -23,6 +23,7 @@ import (
 	"unicode"
 
 	"github.com/rs/zerolog/log"
+	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
 
 const devicePath = "/dev/input"
@@ -213,6 +214,8 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	}
 	var uidev *C.struct_libevdev_uinput
 
+	setIDsWithCaps(0, 0, nil)
+
 	dev := C.libevdev_new()
 	C.libevdev_set_name(dev, C.CString(name))
 	// expose the relevant event types
@@ -238,6 +241,9 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 		Msgf("Virtual keyboard created at %s.",
 			C.GoString(C.libevdev_uinput_get_devnode(uidev)))
 	time.Sleep(time.Millisecond * 500)
+	if err := cap.NewSet().SetProc(); err != nil {
+		return nil, fmt.Errorf("unable to drop privilege: %v", err)
+	}
 	return &VirtualKeyboardDevice{
 		uidev:   uidev,
 		dev:     dev,

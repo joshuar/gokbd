@@ -29,8 +29,15 @@ Examples for reading what keys are being typed (snooping) and writing to a
 virtual keyboard are available under the `examples/` directory. To run them:
 
 ```shell
-go run examples/snoop/main.go # snooping
-go run examples/type/main.go # typing
+cd examples/snoop
+go build
+sudo setcap cap_setgid,cap_setuid=p ./snoop
+./snoop
+
+cd examples/type
+go build
+sudo setcap cap_setgid,cap_setuid=p ./type
+./type
 ```
 
 ## Permissions
@@ -54,4 +61,11 @@ sudo gpasswd -a $USER input
 ```shell
 echo KERNEL==\"uinput\", GROUP=\"$USER\", MODE:=\"0660\" | sudo tee /etc/udev/rules.d/99-$USER.rules
 sudo udevadm trigger
+```
+
+You will also need to grant your compiled binary the `CAP_SETUID` and
+`CAP_SETGID` Linux capabilities. You can do this with:
+
+```shell
+sudo setcap cap_setgid,cap_setuid=p /path/to/binary
 ```

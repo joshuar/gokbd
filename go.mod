@@ -7,6 +7,8 @@ require (
 	github.com/stretchr/testify v1.8.4
 )
 
+require kernel.org/pub/linux/libs/security/libcap/psx v1.2.69 // indirect
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -16,4 +18,5 @@ require (
 	github.com/stretchr/objx v0.5.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.69
 )
