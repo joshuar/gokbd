@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/joshuar/gokbd/compare/v0.1.1...v0.2.0) (2023-06-25)
+
+
+### Features
+
+* use setuid/setgid for uinput device creation ([3547eff](https://github.com/joshuar/gokbd/commit/3547effadd1aa45ebcde73c5df9e45fb0fd1e2ea))
+
 ## [0.1.1](https://github.com/joshuar/gokbd/compare/v0.1.0...v0.1.1) (2023-05-03)
 
 
