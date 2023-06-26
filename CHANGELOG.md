@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/joshuar/gokbd/compare/v0.2.0...v0.2.1) (2023-06-26)
+
+
+### Bug Fixes
+
+* **capabilities:** revert to real UID as needed ([04167f8](https://github.com/joshuar/gokbd/commit/04167f8b444c3b7635fa46e7bce562fc0028cc06))
+
 ## [0.2.0](https://github.com/joshuar/gokbd/compare/v0.1.1...v0.2.0) (2023-06-25)
 
 
