@@ -214,6 +214,7 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	}
 	var uidev *C.struct_libevdev_uinput
 
+	uid, gid := getUserIds()
 	setIDsWithCaps(0, 0, nil)
 
 	dev := C.libevdev_new()
@@ -227,6 +228,7 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	for k := range runeMap {
 		C.libevdev_enable_event_code(dev, C.EV_KEY, C.uint(k), nil)
 	}
+
 	// expose some modifier keys (in this case just the left ones, we only need those)
 	C.libevdev_enable_event_code(dev, C.EV_KEY, C.KEY_LEFTSHIFT, nil)
 	C.libevdev_enable_event_code(dev, C.EV_KEY, C.KEY_LEFTCTRL, nil)
@@ -234,16 +236,19 @@ func NewVirtualKeyboard(name string) (*VirtualKeyboardDevice, error) {
 	C.libevdev_enable_event_code(dev, C.EV_KEY, C.KEY_LEFTMETA, nil)
 
 	rv := C.libevdev_uinput_create_from_device(dev, C.LIBEVDEV_UINPUT_OPEN_MANAGED, &uidev)
-	if rv > 0 {
+	if rv > 0 || uidev == nil {
 		return nil, errors.New("failed to create new uinput device")
 	}
 	log.Debug().Caller().
 		Msgf("Virtual keyboard created at %s.",
 			C.GoString(C.libevdev_uinput_get_devnode(uidev)))
 	time.Sleep(time.Millisecond * 500)
+
+	setIDsWithCaps(uid, gid, []int{getInputGroupGid()})
 	if err := cap.NewSet().SetProc(); err != nil {
 		return nil, fmt.Errorf("unable to drop privilege: %v", err)
 	}
+
 	return &VirtualKeyboardDevice{
 		uidev:   uidev,
 		dev:     dev,
