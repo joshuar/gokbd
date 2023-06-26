@@ -15,7 +15,6 @@ import (
 )
 
 // taken from https://git.kernel.org/pub/scm/libs/libcap/libcap.git/tree/goapps/setid/setid.go#n32
-// TODO: re-write to just elevate to root privileges
 func setIDsWithCaps(setgid, setuid int, gids []int) {
 
 	if err := cap.SetGroups(setgid, gids...); err != nil {
