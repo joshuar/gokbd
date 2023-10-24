@@ -149,10 +149,10 @@ func SnoopAllKeyboards(ctx context.Context, kbds <-chan *KeyboardDevice) <-chan 
 		log.Debug().Caller().
 			Msgf("Tracking keys on device %s.", kbd.fd.Name())
 		wg.Add(1)
-		go func(k *KeyboardDevice, keyCh chan KeyEvent) {
+		go func(ctx context.Context, k *KeyboardDevice, keyCh chan KeyEvent) {
 			defer wg.Done()
-			kbdSnoop(k, keyCh)
-		}(kbd, keys)
+			kbdSnoop(ctx, k, keyCh)
+		}(ctx, kbd, keys)
 	}
 	go func() {
 		<-ctx.Done()
@@ -170,7 +170,7 @@ func SnoopKeyboard(ctx context.Context, kbd *KeyboardDevice) <-chan KeyEvent {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		kbdSnoop(kbd, keys)
+		kbdSnoop(ctx, kbd, keys)
 	}()
 	go func() {
 		<-ctx.Done()
@@ -180,28 +180,33 @@ func SnoopKeyboard(ctx context.Context, kbd *KeyboardDevice) <-chan KeyEvent {
 	return keys
 }
 
-func kbdSnoop(kbd *KeyboardDevice, keys chan KeyEvent) {
+func kbdSnoop(ctx context.Context, kbd *KeyboardDevice, keys chan KeyEvent) {
 	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
 	for {
-		var ev C.struct_input_event
-		C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
-		e := NewKeyEvent(ev)
-		if e.Value != 2 {
-			switch e.EventName {
-			case "KEY_CAPSLOCK":
-				kbd.modifiers.ToggleCapsLock()
-			case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
-				kbd.modifiers.ToggleShift()
-			case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
-				kbd.modifiers.ToggleCtrl()
-			case "KEY_LEFTALT", "KEY_RIGHTALT":
-				kbd.modifiers.ToggleAlt()
-			case "KEY_LEFTMETA", "KEY_RIGHTMETA":
-				kbd.modifiers.ToggleMeta()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			var ev C.struct_input_event
+			C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
+			e := NewKeyEvent(ev)
+			if e.Value != 2 {
+				switch e.EventName {
+				case "KEY_CAPSLOCK":
+					kbd.modifiers.ToggleCapsLock()
+				case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
+					kbd.modifiers.ToggleShift()
+				case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
+					kbd.modifiers.ToggleCtrl()
+				case "KEY_LEFTALT", "KEY_RIGHTALT":
+					kbd.modifiers.ToggleAlt()
+				case "KEY_LEFTMETA", "KEY_RIGHTMETA":
+					kbd.modifiers.ToggleMeta()
+				}
 			}
+			e.updateRune(kbd.modifiers)
+			keys <- *e
 		}
-		e.updateRune(kbd.modifiers)
-		keys <- *e
 	}
 }
 
