@@ -9,6 +9,7 @@ import (
 	"C"
 )
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -24,7 +25,7 @@ func testNewKeyEvent(t *testing.T) {
 	assert.Nil(t, err)
 	_, err = k.Grab()
 	assert.Nil(t, err)
-	keyChan := SnoopKeyboard(k)
+	keyChan := SnoopKeyboard(context.TODO(), k)
 	var wantKey KeyEvent
 	go func() {
 		wantKey = <-keyChan
@@ -65,7 +66,7 @@ func testKeyEvent_updateRune(t *testing.T) {
 	assert.Nil(t, err)
 	_, err = k.Grab()
 	assert.Nil(t, err)
-	keyChan := SnoopKeyboard(k)
+	keyChan := SnoopKeyboard(context.TODO(), k)
 	var wantKey KeyEvent
 	go func() {
 		wantKey = <-keyChan

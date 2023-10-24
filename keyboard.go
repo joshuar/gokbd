@@ -10,6 +10,7 @@ package gokbd
 // #include <libevdev/libevdev-uinput.h>
 import "C"
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -141,17 +142,21 @@ func findAllInputDevices() []string {
 }
 
 // SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  Keyboards are passed in through a channel, see OpenKeyboardDevices for an example of opening all connected keyboards
-func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
+func SnoopAllKeyboards(ctx context.Context, kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 	keys := make(chan KeyEvent)
 	var wg sync.WaitGroup
 	for kbd := range kbds {
 		log.Debug().Caller().
 			Msgf("Tracking keys on device %s.", kbd.fd.Name())
 		wg.Add(1)
-		go kbdSnoop(kbd, &wg, keys)
+		go func(k *KeyboardDevice, keyCh chan KeyEvent) {
+			defer wg.Done()
+			kbdSnoop(k, keyCh)
+		}(kbd, keys)
 	}
 	go func() {
-		defer close(keys)
+		<-ctx.Done()
+		close(keys)
 		wg.Wait()
 	}()
 	return keys
@@ -159,21 +164,24 @@ func SnoopAllKeyboards(kbds <-chan *KeyboardDevice) <-chan KeyEvent {
 
 // SnoopKeyboard will snoop or listen for all key events on the given keyboard
 // device.
-func SnoopKeyboard(kbd *KeyboardDevice) <-chan KeyEvent {
+func SnoopKeyboard(ctx context.Context, kbd *KeyboardDevice) <-chan KeyEvent {
 	keys := make(chan KeyEvent)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go kbdSnoop(kbd, &wg, keys)
 	go func() {
-		defer close(keys)
+		defer wg.Done()
+		kbdSnoop(kbd, keys)
+	}()
+	go func() {
+		<-ctx.Done()
+		close(keys)
 		wg.Wait()
 	}()
 	return keys
 }
 
-func kbdSnoop(kbd *KeyboardDevice, wg *sync.WaitGroup, keys chan KeyEvent) {
+func kbdSnoop(kbd *KeyboardDevice, keys chan KeyEvent) {
 	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
-	defer wg.Done()
 	for {
 		var ev C.struct_input_event
 		C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
