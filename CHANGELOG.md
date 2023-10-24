@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/joshuar/gokbd/compare/v0.2.1...v0.3.0) (2023-10-24)
+
+
+### Features
+
+* **keyboard:** support contexts ([842874e](https://github.com/joshuar/gokbd/commit/842874e7d3642452084816ed645fd9f096cd1270))
+
 ## [0.2.1](https://github.com/joshuar/gokbd/compare/v0.2.0...v0.2.1) (2023-06-26)
 
 
