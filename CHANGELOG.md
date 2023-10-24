@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/joshuar/gokbd/compare/v0.3.0...v0.3.1) (2023-10-24)
+
+
+### Bug Fixes
+
+* **keyboard:** better handling of context cancellation ([bc3c4ea](https://github.com/joshuar/gokbd/commit/bc3c4eaba75057a5c017ad0e5bee8da56524a26f))
+* **keyboard:** ensure context is passed further down ([f8e5ac2](https://github.com/joshuar/gokbd/commit/f8e5ac2deba726d5f50b96e3b9d8e8f74f37b76c))
+
 ## [0.3.0](https://github.com/joshuar/gokbd/compare/v0.2.1...v0.3.0) (2023-10-24)
 
 
