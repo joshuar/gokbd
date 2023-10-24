@@ -143,21 +143,19 @@ func findAllInputDevices() []string {
 
 // SnoopAllKeyboards will snoop or listen for all key events on all currently connected keyboards.  Keyboards are passed in through a channel, see OpenKeyboardDevices for an example of opening all connected keyboards
 func SnoopAllKeyboards(ctx context.Context, kbds <-chan *KeyboardDevice) <-chan KeyEvent {
-	keys := make(chan KeyEvent)
-	var wg sync.WaitGroup
+	keys := make(chan KeyEvent, 1)
+	done := make(chan struct{})
 	for kbd := range kbds {
 		log.Debug().Caller().
 			Msgf("Tracking keys on device %s.", kbd.fd.Name())
-		wg.Add(1)
-		go func(ctx context.Context, k *KeyboardDevice, keyCh chan KeyEvent) {
-			defer wg.Done()
-			kbdSnoop(ctx, k, keyCh)
-		}(ctx, kbd, keys)
+		go func(k *KeyboardDevice, keyCh chan KeyEvent, doneCh chan struct{}) {
+			kbdSnoop(k, keyCh, doneCh)
+		}(kbd, keys, done)
 	}
 	go func() {
+		defer close(keys)
+		defer close(done)
 		<-ctx.Done()
-		close(keys)
-		wg.Wait()
 	}()
 	return keys
 }
@@ -166,46 +164,45 @@ func SnoopAllKeyboards(ctx context.Context, kbds <-chan *KeyboardDevice) <-chan 
 // device.
 func SnoopKeyboard(ctx context.Context, kbd *KeyboardDevice) <-chan KeyEvent {
 	keys := make(chan KeyEvent)
-	var wg sync.WaitGroup
-	wg.Add(1)
+	done := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		kbdSnoop(ctx, kbd, keys)
+		kbdSnoop(kbd, keys, done)
 	}()
 	go func() {
+		defer close(keys)
+		defer close(done)
 		<-ctx.Done()
-		close(keys)
-		wg.Wait()
 	}()
 	return keys
 }
 
-func kbdSnoop(ctx context.Context, kbd *KeyboardDevice, keys chan KeyEvent) {
+func kbdSnoop(kbd *KeyboardDevice, keys chan KeyEvent, done chan struct{}) {
 	norm := C.enum_libevdev_read_flag(C.LIBEVDEV_READ_FLAG_NORMAL)
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			var ev C.struct_input_event
-			C.libevdev_next_event(kbd.dev, C.uint(norm), &ev)
-			e := NewKeyEvent(ev)
-			if e.Value != 2 {
-				switch e.EventName {
-				case "KEY_CAPSLOCK":
-					kbd.modifiers.ToggleCapsLock()
-				case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
-					kbd.modifiers.ToggleShift()
-				case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
-					kbd.modifiers.ToggleCtrl()
-				case "KEY_LEFTALT", "KEY_RIGHTALT":
-					kbd.modifiers.ToggleAlt()
-				case "KEY_LEFTMETA", "KEY_RIGHTMETA":
-					kbd.modifiers.ToggleMeta()
-				}
+		var ev C.struct_input_event
+		if err := C.libevdev_next_event(kbd.dev, C.uint(norm), &ev); err != 0 {
+			log.Error().Msg("libevdev_next_event returned an error.")
+		}
+		e := NewKeyEvent(ev)
+		if e.Value != 2 {
+			switch e.EventName {
+			case "KEY_CAPSLOCK":
+				kbd.modifiers.ToggleCapsLock()
+			case "KEY_LEFTSHIFT", "KEY_RIGHTSHIFT":
+				kbd.modifiers.ToggleShift()
+			case "KEY_LEFTCTRL", "KEY_RIGHTCTRL":
+				kbd.modifiers.ToggleCtrl()
+			case "KEY_LEFTALT", "KEY_RIGHTALT":
+				kbd.modifiers.ToggleAlt()
+			case "KEY_LEFTMETA", "KEY_RIGHTMETA":
+				kbd.modifiers.ToggleMeta()
 			}
-			e.updateRune(kbd.modifiers)
-			keys <- *e
+		}
+		e.updateRune(kbd.modifiers)
+		select {
+		case <-done:
+			return
+		case keys <- *e:
 		}
 	}
 }
